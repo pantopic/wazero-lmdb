@@ -1,0 +1,88 @@
+syntax = "proto3";
+package pantopic_plugin_kv;
+
+option go_package = "github.com/pantopic/plugin-kv";
+
+// go:plugin type=plugin version=1
+service KV {
+  rpc Begin(KVBeginRequest) returns (KVBeginResponse) {}
+  rpc Abort(KVAbortRequest) returns (KVAbortResponse) {}
+  rpc Commit(KVCommitRequest) returns (KVCommitResponse) {}
+  rpc Db(KVDbRequest) returns (KVDbResponse) {}
+  rpc Get(KVGetRequest) returns (KVGetResponse) {}
+  rpc Set(KVSetRequest) returns (KVSetResponse) {}
+  rpc Scan(KVScanRequest) returns (KVScanResponse) {}
+  rpc Next(KVNextRequest) returns (KVNextResponse) {}
+}
+
+// go:plugin type=host
+service KVHost {
+  rpc Begin(KVBeginRequest) returns (KVBeginResponse) {}
+  rpc Abort(KVAbortRequest) returns (KVAbortResponse) {}
+  rpc Commit(KVCommitRequest) returns (KVCommitResponse) {}
+  rpc Db(KVDbRequest) returns (KVDbResponse) {}
+  rpc Get(KVGetRequest) returns (KVGetResponse) {}
+  rpc Set(KVSetRequest) returns (KVSetResponse) {}
+  rpc Scan(KVScanRequest) returns (KVScanResponse) {}
+  rpc Next(KVNextRequest) returns (KVNextResponse) {}
+}
+
+message KVBeginRequest {}
+message KVBeginResponse {
+  bool success = 1;
+}
+
+message KVAbortRequest {}
+message KVAbortResponse {
+  bool success = 1;
+}
+
+message KVCommitRequest {}
+message KVCommitResponse {
+  bool success = 1;
+}
+
+message KVDbRequest {
+  string name = 1;
+  bool multivalue = 2;
+  bool appendonly = 3;
+  bool create = 4;
+}
+message KVDbResponse {
+  uint32 id = 1;
+}
+
+message KVGetRequest {
+  uint32 db_id = 1;
+  bytes key = 2;
+}
+message KVGetResponse {
+  bool exists = 1;
+  bytes value = 2;
+}
+
+message KVSetRequest {
+  uint32 db_id = 1;
+  bytes key = 2;
+  bytes value = 3;
+}
+message KVSetResponse {
+  bool success = 1;
+}
+
+message KVScanRequest {
+  uint32 db_id = 1;
+  bytes start = 2;
+  string filter = 3;
+}
+message KVScanResponse {
+  uint32 cursor_id = 1;
+}
+
+message KVNextRequest {
+  uint32 cursor_id = 1;
+}
+message KVNextResponse {
+  bytes key = 1;
+  bytes value = 2;
+}
