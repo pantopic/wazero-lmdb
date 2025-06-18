@@ -5,7 +5,7 @@ build:
 	@go build -ldflags="-s -w" -o _dist/pantopic
 
 wasm:
-	@GOOS=wasip1 GOARCH=wasm tinygo build -buildmode=wasi-legacy -opt=s -gc=leaking -scheduler=none -o module/sdk.wasm module/sdk.go
+	@GOOS=wasip1 GOARCH=wasm tinygo build -buildmode=wasi-legacy -opt=s -gc=leaking -scheduler=none -o test.wasm lmdb/test/module.go
 
 test:
 	@go test

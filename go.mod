@@ -1,4 +1,4 @@
-module github.com/pantopic/plugin-kv
+module github.com/pantopic/plugin-lmdb
 
 go 1.24.3
 
