@@ -38,6 +38,12 @@ func db() {
 	dbi = txn.DbOpen("test", lmdb.Create)
 }
 
+//export dbstat
+func dbstat() uint64 {
+	data := txn.Stat(dbi)
+	return sliceToPtr(data)
+}
+
 //export set
 func set() {
 	txn.Put(dbi, []byte(`a`), []byte(`1`))
@@ -88,6 +94,7 @@ var _ = open
 var _ = stat
 var _ = begin
 var _ = db
+var _ = dbstat
 var _ = set
 var _ = set2
 var _ = commit

@@ -202,6 +202,13 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			}
 			return
 		},
+		"DbStat": func(txn *lmdb.Txn, dbi lmdb.DBI) *lmdb.Stat {
+			stat, err := txn.Stat(dbi)
+			if err != nil {
+				panic(err)
+			}
+			return stat
+		},
 		"DbDrop": func(txn *lmdb.Txn, dbi lmdb.DBI) {
 			err := txn.Drop(dbi, true)
 			if err != nil && !lmdb.IsNotFound(err) {
@@ -300,6 +307,14 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
 				fn.(func(*lmdb.Txn, lmdb.DBI))(txn(m, meta), dbi(m, meta))
+			})
+		case func(*lmdb.Txn, lmdb.DBI) *lmdb.Stat:
+			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
+				meta := get[*meta](ctx, ctxKeyMeta)
+				stat := fn.(func(*lmdb.Txn, lmdb.DBI) *lmdb.Stat)(txn(m, meta), dbi(m, meta))
+				data, _ := json.Marshal(stat)
+				val := append(valBuf(m, meta), data...)
+				writeUint32(m, meta.valLen, uint32(len(val)))
 			})
 		case func(*lmdb.Txn, lmdb.DBI, []byte):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {

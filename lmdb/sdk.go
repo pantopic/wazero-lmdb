@@ -78,6 +78,10 @@ func lmdbBegin()
 func lmdbDbOpen()
 
 //go:wasm-module lmdb
+//export DbStat
+func lmdbDbStat()
+
+//go:wasm-module lmdb
 //export DbDrop
 func lmdbDbDrop()
 

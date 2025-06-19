@@ -13,6 +13,13 @@ func (t *Txn) DbOpen(name string, flags uint32) uint32 {
 	return expDbi
 }
 
+func (t *Txn) Stat(dbi uint32) []byte {
+	txnID = t.id
+	expDbi = dbi
+	lmdbDbStat()
+	return getVal()
+}
+
 func (t *Txn) Put(dbi uint32, key, val []byte) {
 	txnID = t.id
 	expDbi = dbi
