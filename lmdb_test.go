@@ -22,31 +22,38 @@ func TestPlugin(t *testing.T) {
 	r := wazero.NewRuntimeWithConfig(ctx, runtimeConfig)
 	wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
+	plugin := New("/tmp/pantopic/plugin-lmdb/test")
+	plugin.Register(ctx, r)
+
 	compiled, err := r.CompileModule(ctx, binary)
 	if err != nil {
 		panic(err)
 	}
 	cfg := wazero.NewModuleConfig()
-	mod, err := r.InstantiateModule(ctx, compiled, cfg)
+	mod, err := r.InstantiateModule(ctx, compiled, cfg.WithName("test"))
 	if err != nil {
 		t.Errorf(`%v`, err)
 		return
 	}
 
-	plugin := New("/tmp/pantopic/plugin-lmdb/test")
-	plugin.Register(ctx, r)
-	ctx2 := plugin.InitContext(ctx, mod)
-	meta := get[*meta](ctx2, ctxKeyMeta)
+	ctx = plugin.InitContext(ctx, mod)
+	meta := get[*meta](ctx, ctxKeyMeta)
 	if readUint32(mod, meta.keyMax) != 511 {
 		t.Errorf("incorrect maximum key length: %#v", meta)
+		return
 	}
 
-	test := mod.ExportedFunction("test")
-	stack, err := test.Call(ctx)
+	ctx = context.WithValue(ctx, ctxKeyShardID, uint64(1))
 
+	test := mod.ExportedFunction("test")
+	log.Printf("%s %#v %#v", test.Definition().Name(), test.Definition().ParamTypes(), test.Definition().ResultTypes())
+	stack, err := test.Call(ctx)
+	if err != nil {
+		t.Errorf("%v", err)
+		return
+	}
 	ptr := uint32(stack[0] >> 32)
 	size := uint32(stack[0])
 	buf, ok := mod.Memory().Read(ptr, size)
 	log.Println(string(buf), ok)
-
 }

@@ -9,15 +9,14 @@ import (
 func main() {}
 
 //export test
-func test() (uint32, uint32) {
+func test() uint64 {
 	env := lmdb.Open("test")
 	data := env.Stat()
-	// data := stat.MarshalTo(nil)
 	return sliceToPtr(data)
 }
 
 var _ = test
 
-func sliceToPtr(b []byte) (uint32, uint32) {
-	return uint32(uintptr(unsafe.Pointer(&b[0]))), uint32(len(b))
+func sliceToPtr(b []byte) uint64 {
+	return uint64(uintptr(unsafe.Pointer(&b[0])))<<32 + uint64(len(b))
 }

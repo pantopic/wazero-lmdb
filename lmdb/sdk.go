@@ -10,29 +10,31 @@ var (
 	keyLen    uint32
 	valLen    uint32
 	envID     uint32
+	txnID     uint32
 	dbi       uint32
-	cur       uint32
+	curID     uint32
 	key       = make([]byte, int(maxKeyLen))
 	val       = make([]byte, int(maxValLen))
-	meta      = make([]uint32, 9)
+	meta      = make([]uint32, 10)
 )
 
 //export lmdb
-func Meta() (res uint32) {
+func lmdb() (res uint32) {
 	meta[0] = uint32(uintptr(unsafe.Pointer(&maxKeyLen)))
 	meta[1] = uint32(uintptr(unsafe.Pointer(&maxValLen)))
 	meta[2] = uint32(uintptr(unsafe.Pointer(&keyLen)))
 	meta[3] = uint32(uintptr(unsafe.Pointer(&valLen)))
 	meta[4] = uint32(uintptr(unsafe.Pointer(&envID)))
-	meta[5] = uint32(uintptr(unsafe.Pointer(&dbi)))
-	meta[6] = uint32(uintptr(unsafe.Pointer(&cur)))
-	meta[7] = uint32(uintptr(unsafe.Pointer(&key[0])))
-	meta[8] = uint32(uintptr(unsafe.Pointer(&val[0])))
+	meta[5] = uint32(uintptr(unsafe.Pointer(&txnID)))
+	meta[6] = uint32(uintptr(unsafe.Pointer(&dbi)))
+	meta[7] = uint32(uintptr(unsafe.Pointer(&curID)))
+	meta[8] = uint32(uintptr(unsafe.Pointer(&key[0])))
+	meta[9] = uint32(uintptr(unsafe.Pointer(&val[0])))
 	return uint32(uintptr(unsafe.Pointer(&meta[0])))
 }
 
 func setKey(k []byte) {
-	copy(k, key[:len(k)])
+	copy(key[:len(k)], k)
 	keyLen = uint32(len(k))
 }
 
@@ -41,7 +43,7 @@ func getKey() []byte {
 }
 
 func setVal(v []byte) {
-	copy(v, val[:len(v)])
+	copy(val[:len(v)], v)
 	valLen = uint32(len(v))
 }
 
@@ -49,62 +51,98 @@ func getVal() []byte {
 	return val[:valLen]
 }
 
-//export lmdbDbCreate
-func lmdbDbCreate()
+//go:wasm-module lmdb
+//export EnvOpen
+func lmdbEnvOpen()
 
-//export lmdbDbOpen
-func lmdbDbOpen()
+//go:wasm-module lmdb
+//export EnvStat
+func lmdbEnvStat()
 
-//export lmdbDbDrop
-func lmdbDbDrop()
+//go:wasm-module lmdb
+//export EnvClose
+func lmdbEnvClose()
 
-//export lmdbBegin
+//go:wasm-module lmdb
+//export EnvDelete
+func lmdbEnvDelete()
+
+//go:wasm-module lmdb
+//export Begin
 func lmdbBegin()
 
-//export lmdbCommit
+//go:wasm-module lmdb
+//export DbCreate
+func lmdbDbCreate()
+
+//go:wasm-module lmdb
+//export DbOpen
+func lmdbDbOpen()
+
+//go:wasm-module lmdb
+//export DbDrop
+func lmdbDbDrop()
+
+//go:wasm-module lmdb
+//export Commit
 func lmdbCommit()
 
-//export lmdbAbort
+//go:wasm-module lmdb
+//export Abort
 func lmdbAbort()
 
-//export lmdbPut
+//go:wasm-module lmdb
+//export Put
 func lmdbPut()
 
-//export lmdbGet
+//go:wasm-module lmdb
+//export Get
 func lmdbGet()
 
-//export lmdbDel
+//go:wasm-module lmdb
+//export Del
 func lmdbDel()
 
-//export lmdbDelDup
+//go:wasm-module lmdb
+//export DelDup
 func lmdbDelDup()
 
-//export lmdbCursorOpen
+//go:wasm-module lmdb
+//export CursorOpen
 func lmdbCursorOpen()
 
-//export lmdbCursorSeek
+//go:wasm-module lmdb
+//export CursorSeek
 func lmdbCursorSeek()
 
-//export lmdbCursorGet
+//go:wasm-module lmdb
+//export CursorGet
 func lmdbCursorGet()
 
-//export lmdbCursorDel
+//go:wasm-module lmdb
+//export CursorDel
 func lmdbCursorDel()
 
-//export lmdbCursorNext
+//go:wasm-module lmdb
+//export CursorNext
 func lmdbCursorNext()
 
-//export lmdbCursorNextDup
+//go:wasm-module lmdb
+//export CursorNextDup
 func lmdbCursorNextDup()
 
-//export lmdbCursorNextNoDup
+//go:wasm-module lmdb
+//export CursorNextNoDup
 func lmdbCursorNextNoDup()
 
-//export lmdbCursorPrev
+//go:wasm-module lmdb
+//export CursorPrev
 func lmdbCursorPrev()
 
-//export lmdbCursorPrevDup
+//go:wasm-module lmdb
+//export CursorPrevDup
 func lmdbCursorPrevDup()
 
-//export lmdbCursorPrevNoDup
+//go:wasm-module lmdb
+//export CursorPrevNoDup
 func lmdbCursorPrevNoDup()
