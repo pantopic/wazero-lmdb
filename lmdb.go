@@ -14,6 +14,10 @@ import (
 	"github.com/tetratelabs/wazero/api"
 )
 
+const (
+	Readonly = lmdb.Readonly
+)
+
 var (
 	ctxKeyMeta    = `pantopic_plugin_lmdb_meta`
 	ctxKeyShardID = `pantopic_shard_id`
@@ -29,6 +33,7 @@ type meta struct {
 	ptrTxn uint32
 	ptrDbi uint32
 	ptrCur uint32
+	ptrFlg uint32
 	ptrKey uint32
 	ptrVal uint32
 	txn    map[uint32]*lmdb.Txn
@@ -71,13 +76,17 @@ func New(dataDir string) *plugin {
 }
 
 func (p *plugin) InitContext(ctx context.Context, m api.Module) context.Context {
-	lmdb := m.ExportedFunction(`lmdb`)
-	stack, err := lmdb.Call(ctx)
+	init := m.ExportedFunction(`lmdb`)
+	stack, err := init.Call(ctx)
 	if err != nil {
 		panic(err)
 	}
+	meta := &meta{
+		txn:    make(map[uint32]*lmdb.Txn),
+		cursor: make(map[uint32]*lmdb.Cursor),
+		filter: make(map[uint32]*filter),
+	}
 	ptr := uint32(stack[0])
-	meta := &meta{}
 	meta.keyMax, _ = m.Memory().ReadUint32Le(ptr)
 	meta.valMax, _ = m.Memory().ReadUint32Le(ptr + 4)
 	meta.keyLen, _ = m.Memory().ReadUint32Le(ptr + 8)
@@ -86,8 +95,9 @@ func (p *plugin) InitContext(ctx context.Context, m api.Module) context.Context 
 	meta.ptrTxn, _ = m.Memory().ReadUint32Le(ptr + 20)
 	meta.ptrDbi, _ = m.Memory().ReadUint32Le(ptr + 24)
 	meta.ptrCur, _ = m.Memory().ReadUint32Le(ptr + 28)
-	meta.ptrKey, _ = m.Memory().ReadUint32Le(ptr + 32)
-	meta.ptrVal, _ = m.Memory().ReadUint32Le(ptr + 36)
+	meta.ptrFlg, _ = m.Memory().ReadUint32Le(ptr + 32)
+	meta.ptrKey, _ = m.Memory().ReadUint32Le(ptr + 36)
+	meta.ptrVal, _ = m.Memory().ReadUint32Le(ptr + 40)
 	return context.WithValue(ctx, ctxKeyMeta, meta)
 }
 
@@ -119,7 +129,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			if err != nil {
 				panic(err)
 			}
-			env.SetMaxDBs(1 << 32)
+			env.SetMaxDBs(1 << 16)
 			env.SetMapSize(int64(1 << 37))
 			err = env.Open(path, uint(optEnv), 0700)
 			if err != nil {
@@ -331,7 +341,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 		case func(*lmdb.Txn, string, uint32) lmdb.DBI:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				dbi := fn.(func(*lmdb.Txn, string, uint32) lmdb.DBI)(txn(m, meta), string(key(m, meta)), uint32(stack[0]))
+				dbi := fn.(func(*lmdb.Txn, string, uint32) lmdb.DBI)(txn(m, meta), string(key(m, meta)), flags(m, meta))
 				writeUint32(m, meta.ptrDbi, uint32(dbi))
 			})
 		case func(*lmdb.Txn, lmdb.DBI):
@@ -407,7 +417,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 				if parentID > 0 {
 					parent = meta.txn[parentID]
 				}
-				txn := fn.(func(*lmdb.Env, *lmdb.Txn, bool) *lmdb.Txn)(p.env(ctx, m, meta), parent, dbi(m, meta) > 0)
+				txn := fn.(func(*lmdb.Env, *lmdb.Txn, bool) *lmdb.Txn)(p.env(ctx, m, meta), parent, flags(m, meta)&Readonly > 0)
 				meta.txnID++
 				meta.txn[meta.txnID] = txn
 				writeUint32(m, meta.ptrTxn, meta.txnID)
@@ -415,7 +425,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 		case func(*lmdb.Txn):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				fn.(func(*lmdb.Txn) *lmdb.Txn)(txn(m, meta))
+				fn.(func(*lmdb.Txn))(txn(m, meta))
 				delete(meta.txn, txnID(m, meta))
 			})
 		default:
@@ -423,6 +433,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 		}
 	}
 }
+
 func (p *plugin) ShardClose(shardID uint64) {
 	p.Lock()
 	envs := p.shards[shardID].envs
@@ -528,6 +539,10 @@ func envID(m api.Module, meta *meta) uint32 {
 
 func dbi(m api.Module, meta *meta) lmdb.DBI {
 	return lmdb.DBI(readUint32(m, meta.ptrDbi))
+}
+
+func flags(m api.Module, meta *meta) uint32 {
+	return readUint32(m, meta.ptrFlg)
 }
 
 func cur(m api.Module, meta *meta) (cur *lmdb.Cursor) {

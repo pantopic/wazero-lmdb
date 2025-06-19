@@ -44,16 +44,30 @@ func TestPlugin(t *testing.T) {
 	}
 
 	ctx = context.WithValue(ctx, ctxKeyShardID, uint64(1))
-
-	test := mod.ExportedFunction("test")
-	log.Printf("%s %#v %#v", test.Definition().Name(), test.Definition().ParamTypes(), test.Definition().ResultTypes())
-	stack, err := test.Call(ctx)
-	if err != nil {
+	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
 	}
-	ptr := uint32(stack[0] >> 32)
-	size := uint32(stack[0])
-	buf, ok := mod.Memory().Read(ptr, size)
+	stack, err := mod.ExportedFunction("stat").Call(ctx)
+	buf, ok := mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	log.Println(string(buf), ok)
+	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("db").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("set").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	stack, err = mod.ExportedFunction("stat").Call(ctx)
+	buf, ok = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
 	log.Println(string(buf), ok)
 }

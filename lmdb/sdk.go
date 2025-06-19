@@ -11,11 +11,12 @@ var (
 	valLen    uint32
 	envID     uint32
 	txnID     uint32
-	dbi       uint32
+	expDbi    uint32
 	curID     uint32
+	expFlags  uint32
 	key       = make([]byte, int(maxKeyLen))
 	val       = make([]byte, int(maxValLen))
-	meta      = make([]uint32, 10)
+	meta      = make([]uint32, 11)
 )
 
 //export lmdb
@@ -26,10 +27,11 @@ func lmdb() (res uint32) {
 	meta[3] = uint32(uintptr(unsafe.Pointer(&valLen)))
 	meta[4] = uint32(uintptr(unsafe.Pointer(&envID)))
 	meta[5] = uint32(uintptr(unsafe.Pointer(&txnID)))
-	meta[6] = uint32(uintptr(unsafe.Pointer(&dbi)))
+	meta[6] = uint32(uintptr(unsafe.Pointer(&expDbi)))
 	meta[7] = uint32(uintptr(unsafe.Pointer(&curID)))
-	meta[8] = uint32(uintptr(unsafe.Pointer(&key[0])))
-	meta[9] = uint32(uintptr(unsafe.Pointer(&val[0])))
+	meta[8] = uint32(uintptr(unsafe.Pointer(&expFlags)))
+	meta[9] = uint32(uintptr(unsafe.Pointer(&key[0])))
+	meta[10] = uint32(uintptr(unsafe.Pointer(&val[0])))
 	return uint32(uintptr(unsafe.Pointer(&meta[0])))
 }
 
