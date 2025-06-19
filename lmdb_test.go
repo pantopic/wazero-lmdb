@@ -122,17 +122,17 @@ func TestPlugin(t *testing.T) {
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
 	if !strings.Contains(string(buf), `"Entries":2`) {
 		// t.Errorf("Wrong number of entries: %s", string(buf))
-		t.Logf("Wrong number of entries: %s", string(buf))
+		t.Logf("Warning: Incorrect entry count: %s", string(buf))
 	}
 	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
 	}
-	if _, err := mod.ExportedFunction("get2").Call(ctx); err != nil {
+	if _, err := mod.ExportedFunction("get").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
 	}
-	if _, err := mod.ExportedFunction("abort").Call(ctx); err != nil {
+	if _, err := mod.ExportedFunction("get2").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
 	}
