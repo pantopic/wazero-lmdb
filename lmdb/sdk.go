@@ -5,31 +5,31 @@ import (
 )
 
 var (
-	maxKeyLen uint32 = 511
-	maxValLen uint32 = 1.5 * 1024 * 1024
-	keyLen    uint32
-	valLen    uint32
-	envID     uint32
-	txnID     uint32
-	expDbi    uint32
-	curID     uint32
-	expFlags  uint32
-	key       = make([]byte, int(maxKeyLen))
-	val       = make([]byte, int(maxValLen))
-	meta      = make([]uint32, 11)
+	maxKey uint32 = 511
+	maxVal uint32 = 1.5 * 1024 * 1024
+	keyLen uint32
+	valLen uint32
+	envID  uint32
+	txnID  uint32
+	expDbi uint32
+	curID  uint32
+	expFlg uint32
+	key    = make([]byte, int(maxKey))
+	val    = make([]byte, int(maxVal))
+	meta   = make([]uint32, 11)
 )
 
 //export lmdb
 func lmdb() (res uint32) {
-	meta[0] = uint32(uintptr(unsafe.Pointer(&maxKeyLen)))
-	meta[1] = uint32(uintptr(unsafe.Pointer(&maxValLen)))
+	meta[0] = uint32(uintptr(unsafe.Pointer(&maxKey)))
+	meta[1] = uint32(uintptr(unsafe.Pointer(&maxVal)))
 	meta[2] = uint32(uintptr(unsafe.Pointer(&keyLen)))
 	meta[3] = uint32(uintptr(unsafe.Pointer(&valLen)))
 	meta[4] = uint32(uintptr(unsafe.Pointer(&envID)))
 	meta[5] = uint32(uintptr(unsafe.Pointer(&txnID)))
 	meta[6] = uint32(uintptr(unsafe.Pointer(&expDbi)))
 	meta[7] = uint32(uintptr(unsafe.Pointer(&curID)))
-	meta[8] = uint32(uintptr(unsafe.Pointer(&expFlags)))
+	meta[8] = uint32(uintptr(unsafe.Pointer(&expFlg)))
 	meta[9] = uint32(uintptr(unsafe.Pointer(&key[0])))
 	meta[10] = uint32(uintptr(unsafe.Pointer(&val[0])))
 	return uint32(uintptr(unsafe.Pointer(&meta[0])))
@@ -74,10 +74,6 @@ func lmdbEnvDelete()
 func lmdbBegin()
 
 //go:wasm-module lmdb
-//export DbCreate
-func lmdbDbCreate()
-
-//go:wasm-module lmdb
 //export DbOpen
 func lmdbDbOpen()
 
@@ -114,10 +110,6 @@ func lmdbDelDup()
 func lmdbCursorOpen()
 
 //go:wasm-module lmdb
-//export CursorSeek
-func lmdbCursorSeek()
-
-//go:wasm-module lmdb
 //export CursorGet
 func lmdbCursorGet()
 
@@ -125,26 +117,5 @@ func lmdbCursorGet()
 //export CursorDel
 func lmdbCursorDel()
 
-//go:wasm-module lmdb
-//export CursorNext
-func lmdbCursorNext()
-
-//go:wasm-module lmdb
-//export CursorNextDup
-func lmdbCursorNextDup()
-
-//go:wasm-module lmdb
-//export CursorNextNoDup
-func lmdbCursorNextNoDup()
-
-//go:wasm-module lmdb
-//export CursorPrev
-func lmdbCursorPrev()
-
-//go:wasm-module lmdb
-//export CursorPrevDup
-func lmdbCursorPrevDup()
-
-//go:wasm-module lmdb
-//export CursorPrevNoDup
-func lmdbCursorPrevNoDup()
+// Fix for lint rule `unusedfunc`
+var _ = lmdb

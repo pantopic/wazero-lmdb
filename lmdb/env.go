@@ -4,8 +4,9 @@ type Env struct {
 	id uint32
 }
 
-func Open(name string) *Env {
+func Open(name string, flags uint32) *Env {
 	setKey([]byte(name))
+	expFlg = flags
 	lmdbEnvOpen()
 	return &Env{
 		id: envID,
@@ -28,13 +29,14 @@ func (e *Env) Delete() {
 	lmdbEnvDelete()
 }
 
-func (e *Env) BeginTxn(parent *Txn, readonly bool) *Txn {
+func (e *Env) BeginTxn(parent *Txn, flags uint32) *Txn {
 	envID = e.id
 	if parent != nil {
 		txnID = parent.id
 	} else {
 		txnID = 0
 	}
+	expFlg = flags
 	lmdbBegin()
 	return &Txn{
 		envID: e.id,
