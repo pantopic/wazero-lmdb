@@ -227,7 +227,6 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			if err != nil && !lmdb.IsNotFound(err) {
 				panic(err)
 			}
-			return
 		},
 		"Put": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) {
 			err := txn.Put(dbi, key, val, 0)
@@ -249,14 +248,12 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			if err != nil && !lmdb.IsNotFound(err) {
 				panic(err)
 			}
-			return
 		},
 		"DelDup": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) {
 			err := txn.Del(dbi, key, val)
 			if err != nil && !lmdb.IsNotFound(err) {
 				panic(err)
 			}
-			return
 		},
 		"CursorOpen": func(txn *lmdb.Txn, dbi lmdb.DBI, key, filter []byte) *lmdb.Cursor {
 			cur, err := txn.OpenCursor(dbi)
@@ -285,27 +282,27 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			}
 		},
 	} {
-		switch fn.(type) {
+		switch fn := fn.(type) {
 		case func(context.Context, string, uint32) uint32:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				envID := fn.(func(context.Context, string, uint32) uint32)(ctx, string(key(m, meta)), flags(m, meta))
+				envID := fn(ctx, string(key(m, meta)), flags(m, meta))
 				writeUint32(m, meta.ptrEnv, uint32(envID))
 			})
 		case func(context.Context, string):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				fn.(func(context.Context, string))(ctx, string(key(m, meta)))
+				fn(ctx, string(key(m, meta)))
 			})
 		case func(context.Context, uint32):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				fn.(func(context.Context, uint32))(ctx, envID(m, meta))
+				fn(ctx, envID(m, meta))
 			})
 		case func(*lmdb.Env) *lmdb.Stat:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				stat := fn.(func(*lmdb.Env) *lmdb.Stat)(p.env(ctx, m, meta))
+				stat := fn(p.env(ctx, m, meta))
 				data, _ := json.Marshal(stat)
 				val := append(valBuf(m, meta), data...)
 				writeUint32(m, meta.valLen, uint32(len(val)))
@@ -313,18 +310,18 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 		case func(*lmdb.Txn, string, uint32) lmdb.DBI:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				dbi := fn.(func(*lmdb.Txn, string, uint32) lmdb.DBI)(txn(m, meta), string(key(m, meta)), flags(m, meta))
+				dbi := fn(txn(m, meta), string(key(m, meta)), flags(m, meta))
 				writeUint32(m, meta.ptrDbi, uint32(dbi))
 			})
 		case func(*lmdb.Txn, lmdb.DBI):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				fn.(func(*lmdb.Txn, lmdb.DBI))(txn(m, meta), dbi(m, meta))
+				fn(txn(m, meta), dbi(m, meta))
 			})
 		case func(*lmdb.Txn, lmdb.DBI) *lmdb.Stat:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				stat := fn.(func(*lmdb.Txn, lmdb.DBI) *lmdb.Stat)(txn(m, meta), dbi(m, meta))
+				stat := fn(txn(m, meta), dbi(m, meta))
 				data, _ := json.Marshal(stat)
 				val := append(valBuf(m, meta), data...)
 				writeUint32(m, meta.valLen, uint32(len(val)))
@@ -332,35 +329,35 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 		case func(*lmdb.Txn, lmdb.DBI, []byte):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				fn.(func(*lmdb.Txn, lmdb.DBI, []byte))(txn(m, meta), dbi(m, meta), key(m, meta))
+				fn(txn(m, meta), dbi(m, meta), key(m, meta))
 			})
 		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				fn.(func(*lmdb.Txn, lmdb.DBI, []byte, []byte))(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta))
+				fn(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta))
 			})
 		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte) []byte:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				val := fn.(func(*lmdb.Txn, lmdb.DBI, []byte, []byte) []byte)(txn(m, meta), dbi(m, meta), key(m, meta), valBuf(m, meta))
+				val := fn(txn(m, meta), dbi(m, meta), key(m, meta), valBuf(m, meta))
 				writeUint32(m, meta.valLen, uint32(len(val)))
 			})
 		case func(*lmdb.Cursor):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				fn.(func(*lmdb.Cursor))(cur(m, meta))
+				fn(cur(m, meta))
 			})
 		case func(*lmdb.Cursor, []byte, []byte, uint32) ([]byte, []byte):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				key, val := fn.(func(*lmdb.Cursor, []byte, []byte, uint32) ([]byte, []byte))(cur(m, meta), key(m, meta), val(m, meta), flags(m, meta))
+				key, val := fn(cur(m, meta), key(m, meta), val(m, meta), flags(m, meta))
 				writeUint32(m, meta.keyLen, uint32(len(key)))
 				writeUint32(m, meta.valLen, uint32(len(val)))
 			})
 		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte) *lmdb.Cursor:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				cur := fn.(func(*lmdb.Txn, lmdb.DBI, []byte, []byte) *lmdb.Cursor)(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta))
+				cur := fn(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta))
 				meta.curID++
 				meta.cursor[meta.curID] = cur
 				writeUint32(m, meta.ptrCur, meta.curID)
@@ -373,7 +370,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 				if parentID > 0 {
 					parent = meta.txn[parentID]
 				}
-				txn := fn.(func(*lmdb.Env, *lmdb.Txn, uint32) *lmdb.Txn)(p.env(ctx, m, meta), parent, flags(m, meta))
+				txn := fn(p.env(ctx, m, meta), parent, flags(m, meta))
 				meta.txnID++
 				meta.txn[meta.txnID] = txn
 				writeUint32(m, meta.ptrTxn, meta.txnID)
@@ -381,7 +378,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 		case func(*lmdb.Txn):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, ctxKeyMeta)
-				fn.(func(*lmdb.Txn))(txn(m, meta))
+				fn(txn(m, meta))
 				delete(meta.txn, txnID(m, meta))
 			})
 		default:
@@ -390,7 +387,8 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 	}
 }
 
-func (p *plugin) ShardClose(shardID uint64) {
+func (p *plugin) ShardClose(ctx context.Context) {
+	shardID := get[uint64](ctx, ctxKeyShardID)
 	p.Lock()
 	defer p.Unlock()
 	shard, ok := p.shards[shardID]
@@ -412,7 +410,8 @@ func (p *plugin) ShardDelete(ctx context.Context) {
 	}
 }
 
-func (p *plugin) ShardSync(shardID uint64) {
+func (p *plugin) ShardSync(ctx context.Context) {
+	shardID := get[uint64](ctx, ctxKeyShardID)
 	p.RLock()
 	defer p.RUnlock()
 	shard, ok := p.shards[shardID]
@@ -539,7 +538,6 @@ func writeUint32(m api.Module, ptr uint32, val uint32) {
 	if ok := m.Memory().WriteUint32Le(ptr, val); !ok {
 		log.Panicf("Memory.Read(%d) out of range", ptr)
 	}
-	return
 }
 
 func txn(m api.Module, meta *meta) *lmdb.Txn {

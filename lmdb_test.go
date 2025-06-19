@@ -7,13 +7,14 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
-//go:embed test\.wasm
+//go:embed test\.prod\.wasm
 var binary []byte
 
 func TestPlugin(t *testing.T) {
@@ -178,15 +179,32 @@ func TestPlugin(t *testing.T) {
 		return
 	}
 	plugin.Reset(ctx)
-	plugin.ShardSync(1)
-	plugin.ShardClose(1)
+	plugin.ShardSync(ctx)
+	plugin.ShardClose(ctx)
 	plugin.ShardDelete(ctx)
-	plugin.ShardSync(1)
-	plugin.ShardClose(1)
+	plugin.ShardSync(ctx)
+	plugin.ShardClose(ctx)
 	plugin.ShardDelete(ctx)
 	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
 	}
+	var n uint64 = 10_000
+	start := time.Now()
+	if _, err := mod.ExportedFunction("stress").Call(ctx, n); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
+	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	if !strings.Contains(string(buf), fmt.Sprintf(`"Entries":%d`, n)) {
+		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
+	t.Logf(`Stress: %v per Put`, time.Since(start)/time.Duration(n))
 	plugin.Stop()
 }

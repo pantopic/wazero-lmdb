@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"unsafe"
 
 	"github.com/pantopic/plugin-lmdb/lmdb"
@@ -75,6 +76,17 @@ func get2() {
 	}
 }
 
+//export stress
+func stress(limit uint32) {
+	txn = env.BeginTxn(nil, 0)
+	dbi = txn.DbOpen("test", lmdb.Create)
+	n := int64(limit)
+	for i := range n {
+		txn.Put(dbi, []byte(strconv.FormatInt(i+1e15, 16)), []byte(strconv.FormatInt(n-i+1e15, 16)))
+	}
+	txn.Commit()
+}
+
 //export abort
 func abort() {
 	txn.Abort()
@@ -103,3 +115,4 @@ var _ = close
 var _ = get
 var _ = get2
 var _ = beginread
+var _ = stress
