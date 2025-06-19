@@ -21,6 +21,7 @@ const (
 var (
 	ctxKeyMeta    = `pantopic_plugin_lmdb_meta`
 	ctxKeyShardID = `pantopic_shard_id`
+	ctxKeyDataDir = `pantopic_shard_data_dir`
 
 	optEnv    uint = lmdb.NoMemInit | lmdb.NoReadahead | lmdb.NoSync | lmdb.NoMetaSync | lmdb.NoLock | lmdb.NoSubdir
 	openFlags uint = lmdb.NoReadahead | lmdb.Create
@@ -68,14 +69,12 @@ func newShard() *shard {
 type plugin struct {
 	sync.RWMutex
 
-	shards  map[uint64]*shard
-	dataDir string
+	shards map[uint64]*shard
 }
 
-func New(dataDir string) *plugin {
+func New() *plugin {
 	return &plugin{
-		dataDir: dataDir,
-		shards:  map[uint64]*shard{},
+		shards: map[uint64]*shard{},
 	}
 }
 
@@ -117,15 +116,28 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 	}
 	for name, fn := range map[string]any{
 		"EnvOpen": func(ctx context.Context, name string, flags uint32) uint32 {
-			p.Lock()
 			shardID := get[uint64](ctx, ctxKeyShardID)
+			p.RLock()
 			shard, ok := p.shards[shardID]
+			p.RUnlock()
 			if !ok {
-				shard = newShard()
-				p.shards[shardID] = shard
+				p.Lock()
+				shard, ok = p.shards[shardID]
+				if !ok {
+					shard = newShard()
+					p.shards[shardID] = shard
+				}
+				p.Unlock()
 			}
-			p.Unlock()
-			path := fmt.Sprintf(`%s/%016x`, p.dataDir, shardID)
+			if ok {
+				shard.RLock()
+				envID, ok := shard.envNames[name]
+				shard.RUnlock()
+				if ok {
+					return envID
+				}
+			}
+			path := get[string](ctx, ctxKeyDataDir)
 			if err := os.MkdirAll(path, 0755); err != nil {
 				panic(err)
 			}
@@ -144,6 +156,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			defer shard.Unlock()
 			shard.envID++
 			shard.envs[shard.envID] = env
+			shard.envNames[name] = shard.envID
 			return shard.envID
 		},
 		"EnvStat": func(env *lmdb.Env) *lmdb.Stat {
@@ -181,7 +194,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			}
 		},
 		"EnvDelete": func(ctx context.Context, name string) {
-			path := fmt.Sprintf(`%s/%08x/%s.mdb`, p.dataDir, get[uint64](ctx, ctxKeyShardID), name)
+			path := fmt.Sprintf(`%s/%s.mdb`, get[string](ctx, ctxKeyDataDir), name)
 			if err := os.Remove(path); err != nil {
 				panic(err)
 			}
@@ -379,13 +392,12 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 
 func (p *plugin) ShardClose(shardID uint64) {
 	p.Lock()
+	defer p.Unlock()
 	shard, ok := p.shards[shardID]
 	if !ok {
-		p.Unlock()
 		return
 	}
 	delete(p.shards, shardID)
-	p.Unlock()
 	envs := shard.envs
 	for _, env := range envs {
 		if err := env.Close(); err != nil {
@@ -394,9 +406,8 @@ func (p *plugin) ShardClose(shardID uint64) {
 	}
 }
 
-func (p *plugin) ShardDelete(shardID uint64) {
-	path := fmt.Sprintf(`%s/%08x`, p.dataDir, shardID)
-	if err := os.RemoveAll(path); err != nil {
+func (p *plugin) ShardDelete(ctx context.Context) {
+	if err := os.RemoveAll(get[string](ctx, ctxKeyDataDir)); err != nil {
 		panic(err)
 	}
 }

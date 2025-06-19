@@ -3,6 +3,7 @@ package plugin_lmdb
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -25,7 +26,7 @@ func TestPlugin(t *testing.T) {
 
 	path := "/tmp/pantopic/plugin-lmdb"
 	os.RemoveAll(path)
-	plugin := New(path)
+	plugin := New()
 	plugin.Register(ctx, r)
 
 	compiled, err := r.CompileModule(ctx, binary)
@@ -46,7 +47,9 @@ func TestPlugin(t *testing.T) {
 		return
 	}
 
-	ctx = context.WithValue(ctx, ctxKeyShardID, uint64(1))
+	shardID := 1
+	ctx = context.WithValue(ctx, ctxKeyShardID, uint64(shardID))
+	ctx = context.WithValue(ctx, ctxKeyDataDir, fmt.Sprintf(`%s/%016x`, path, shardID))
 	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
@@ -166,6 +169,10 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
+	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
 	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
@@ -173,10 +180,10 @@ func TestPlugin(t *testing.T) {
 	plugin.Reset(ctx)
 	plugin.ShardSync(1)
 	plugin.ShardClose(1)
-	plugin.ShardDelete(1)
+	plugin.ShardDelete(ctx)
 	plugin.ShardSync(1)
 	plugin.ShardClose(1)
-	plugin.ShardDelete(1)
+	plugin.ShardDelete(ctx)
 	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
