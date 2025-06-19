@@ -90,7 +90,11 @@ func (p *plugin) InitContext(ctx context.Context, m api.Module) context.Context 
 
 func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 	builder := runtime.NewHostModuleBuilder("lmdb")
-	defer builder.Instantiate(ctx)
+	defer func() {
+		if _, err := builder.Instantiate(ctx); err != nil {
+			panic(err)
+		}
+	}()
 	for name, fn := range map[string]any{
 		"EnvOpen": func(ctx context.Context, name string) (envID uint32) {
 			p.Lock()
@@ -235,6 +239,12 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			}
 			return val
 		},
+		"CursorDel": func(ctx context.Context, cur *lmdb.Cursor) {
+			err := cur.Del(0)
+			if err != nil && !lmdb.IsNotFound(err) {
+				panic(err)
+			}
+		},
 		"CursorNext": func(ctx context.Context, cur *lmdb.Cursor, key, val []byte) ([]byte, []byte) {
 			key, val, err := cur.Get(key, val, lmdb.Next)
 			if err != nil && !lmdb.IsNotFound(err) {
@@ -345,6 +355,11 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 				key, val := fn.(func(context.Context, *lmdb.Env, lmdb.DBI, []byte, []byte) ([]byte, []byte))(ctx, p.env(ctx, m, meta), dbi(m, meta), keyBuf(m, meta), valBuf(m, meta))
 				writeUint32(m, meta.keyLen, uint32(len(key)))
 				writeUint32(m, meta.valLen, uint32(len(val)))
+			}), nil, nil).Export(name)
+		case func(context.Context, *lmdb.Cursor):
+			builder = builder.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) {
+				meta := get[*meta](ctx, ctxKeyMeta)
+				fn.(func(context.Context, *lmdb.Cursor))(ctx, cur(m, meta))
 			}), nil, nil).Export(name)
 		case func(context.Context, *lmdb.Cursor, []byte):
 			builder = builder.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) {

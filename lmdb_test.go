@@ -3,6 +3,7 @@ package plugin_lmdb
 import (
 	"context"
 	_ "embed"
+	"log"
 	"testing"
 
 	"github.com/tetratelabs/wazero"
@@ -26,16 +27,26 @@ func TestPlugin(t *testing.T) {
 		panic(err)
 	}
 	cfg := wazero.NewModuleConfig()
-	mod, err := r.InstantiateModule(ctx, compiled, cfg.WithName("test"))
+	mod, err := r.InstantiateModule(ctx, compiled, cfg)
 	if err != nil {
 		t.Errorf(`%v`, err)
+		return
 	}
 
-	p := New("/tmp/pantopic/plugin-lmdb/test")
-	p.Register(ctx, r)
-	ctx2 := p.InitContext(ctx, mod)
+	plugin := New("/tmp/pantopic/plugin-lmdb/test")
+	plugin.Register(ctx, r)
+	ctx2 := plugin.InitContext(ctx, mod)
 	meta := get[*meta](ctx2, ctxKeyMeta)
 	if readUint32(mod, meta.keyMax) != 511 {
 		t.Errorf("incorrect maximum key length: %#v", meta)
 	}
+
+	test := mod.ExportedFunction("test")
+	stack, err := test.Call(ctx)
+
+	ptr := uint32(stack[0] >> 32)
+	size := uint32(stack[0])
+	buf, ok := mod.Memory().Read(ptr, size)
+	log.Println(string(buf), ok)
+
 }
