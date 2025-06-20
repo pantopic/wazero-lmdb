@@ -7,8 +7,7 @@ A wazero host module, ABI and guest SDK providing LMDB for WASI modules deployed
 [![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/plugin-lmdb?4)](https://goreportcard.com/report/github.com/pantopic/plugin-lmdb)
 [![Go Coverage](https://github.com/pantopic/plugin-lmdb/wiki/coverage.svg)](https://raw.githack.com/wiki/pantopic/plugin-lmdb/coverage.html)
 
-The guest SDK has no dependencies and is only ~200 lines of code.  
-You can import it into your WASI reactor module to create and manage LMDB environments
+You can import the guest SDK into your WASI reactor module to create and manage LMDB environments in WASM.
 
 ```go
 package main
@@ -38,3 +37,7 @@ func get() uint64 {
 	return uint64(uintptr(unsafe.Pointer(&val[0])))<<32 + uint64(len(val))
 }
 ```
+
+The guest SDK has no dependencies. The [ABI](abi.go) is ~130 lines of code and the [SDK](sdk.go) is ~200 lines of code
+so it should be simple to port this guest SDK if you want to use use this Host Module in other guest languages
+(i.e. Rust). Contributions welcome.
