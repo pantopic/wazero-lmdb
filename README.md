@@ -14,7 +14,7 @@ You can import it into your WASI reactor module to create and manage LMDB enviro
 package main
 
 import (
-    "unsafe"
+	"unsafe"
 
 	"github.com/pantopic/plugin-lmdb/lmdb"
 )
@@ -23,18 +23,18 @@ func main() {}
 
 //export set
 func set() {
-    lmdb.Open("test", lmdb.Create).Update(func(txn *lmdb.Txn) error {
-        txn.Put(txn.DbOpen("dbname", lmdb.Create), []byte(`hello`), []byte(`world`))
-        return nil
-    })
+	lmdb.Open("test", lmdb.Create).Update(func(txn *lmdb.Txn) error {
+		txn.Put(txn.DbOpen("dbname", lmdb.Create), []byte(`hello`), []byte(`world`))
+		return nil
+	})
 }
 
 //export get
 func get() uint64 {
-    var val []byte
-    lmdb.Open("test").View(func(txn *lmdb.Txn) {
-        val = txn.Get(txn.DbOpen("dbname"), []byte(`hello`))
-    })
-    return uint64(uintptr(unsafe.Pointer(&val[0])))<<32 + uint64(len(val))
+	var val []byte
+	lmdb.Open("test").View(func(txn *lmdb.Txn) {
+		val = txn.Get(txn.DbOpen("dbname"), []byte(`hello`))
+	})
+	return uint64(uintptr(unsafe.Pointer(&val[0])))<<32 + uint64(len(val))
 }
 ```
