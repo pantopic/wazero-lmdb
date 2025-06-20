@@ -1,6 +1,6 @@
 package lmdb
 
-// Plugin flags
+// Host Module flags
 const (
 	// Flag for EnvOpen indicating selection of block storage directory rather than local storage (default).
 	Block uint32 = 1 << 31
