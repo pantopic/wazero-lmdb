@@ -1,8 +1,7 @@
 package lmdb
 
 type Txn struct {
-	envID uint32
-	id    uint32
+	id uint32
 }
 
 func (t *Txn) DbOpen(name string, flags uint32) uint32 {
@@ -11,6 +10,12 @@ func (t *Txn) DbOpen(name string, flags uint32) uint32 {
 	setKey([]byte(name))
 	lmdbDbOpen()
 	return expDbi
+}
+
+func (t *Txn) DbDrop(dbi uint32) {
+	txnID = t.id
+	expDbi = dbi
+	lmdbDbDrop()
 }
 
 func (t *Txn) Stat(dbi uint32) []byte {
@@ -34,6 +39,21 @@ func (t *Txn) Get(dbi uint32, key []byte) []byte {
 	setKey(key)
 	lmdbGet()
 	return getVal()
+}
+
+func (t *Txn) Del(dbi uint32, key, val []byte) {
+	txnID = t.id
+	expDbi = dbi
+	setKey(key)
+	setVal(val)
+	lmdbDel()
+}
+
+func (t *Txn) CursorOpen(dbi uint32) *Cursor {
+	txnID = t.id
+	expDbi = dbi
+	lmdbCursorOpen()
+	return &Cursor{curID}
 }
 
 func (t *Txn) Commit() {

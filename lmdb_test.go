@@ -14,7 +14,7 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
-//go:embed test\.prod\.wasm
+//go:embed test\.wasm
 var binary []byte
 
 func TestPlugin(t *testing.T) {
@@ -43,7 +43,7 @@ func TestPlugin(t *testing.T) {
 
 	ctx = plugin.InitContext(ctx, mod)
 	meta := get[*meta](ctx, ctxKeyMeta)
-	if readUint32(mod, meta.keyMax) != 511 {
+	if readUint32(mod, meta.ptrKeyMax) != 511 {
 		t.Errorf("incorrect maximum key length: %#v", meta)
 		return
 	}
@@ -154,11 +154,91 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("Wrong number of entries: %v", string(buf))
 		return
 	}
-	if _, err := mod.ExportedFunction("get").Call(ctx); err != nil {
+	if _, err := mod.ExportedFunction("get2").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
 	}
-	if _, err := mod.ExportedFunction("get2").Call(ctx); err != nil {
+	if _, err := mod.ExportedFunction("abort").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("del").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
+	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	if !strings.Contains(string(buf), `"Entries":1`) {
+		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
+	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
+	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	if !strings.Contains(string(buf), `"Entries":1`) {
+		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
+	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("cursoropen").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("cursorfirst").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("cursorput").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("cursorcurrent").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("cursorclose").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("cursoropen").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("cursorfirst").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("cursornext").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("abort").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
 	}
@@ -195,7 +275,8 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
-	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
+	t.Logf(`Stress: %v per Put`, time.Since(start)/time.Duration(n))
+	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
 	}
@@ -205,6 +286,33 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("Wrong number of entries: %v", string(buf))
 		return
 	}
-	t.Logf(`Stress: %v per Put`, time.Since(start)/time.Duration(n))
+	if _, err := mod.ExportedFunction("dbdrop").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	stack, err = mod.ExportedFunction("stat").Call(ctx)
+	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	if !strings.Contains(string(buf), `"Entries":0`) {
+		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
+	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("db").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
+	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	if !strings.Contains(string(buf), `"Entries":0`) {
+		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
 	plugin.Stop()
 }

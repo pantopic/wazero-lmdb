@@ -41,7 +41,7 @@ func setKey(k []byte) {
 }
 
 func getKey() []byte {
-	return val[:keyLen]
+	return key[:keyLen]
 }
 
 func setVal(v []byte) {
@@ -106,10 +106,6 @@ func lmdbGet()
 func lmdbDel()
 
 //go:wasm-module lmdb
-//export DelDup
-func lmdbDelDup()
-
-//go:wasm-module lmdb
 //export CursorOpen
 func lmdbCursorOpen()
 
@@ -118,8 +114,16 @@ func lmdbCursorOpen()
 func lmdbCursorGet()
 
 //go:wasm-module lmdb
+//export CursorPut
+func lmdbCursorPut()
+
+//go:wasm-module lmdb
 //export CursorDel
 func lmdbCursorDel()
+
+//go:wasm-module lmdb
+//export CursorClose
+func lmdbCursorClose()
 
 // Fix for lint rule `unusedfunc`
 var _ = lmdb

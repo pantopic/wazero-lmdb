@@ -8,9 +8,7 @@ func Open(name string, flags uint32) *Env {
 	setKey([]byte(name))
 	expFlg = flags
 	lmdbEnvOpen()
-	return &Env{
-		id: envID,
-	}
+	return &Env{envID}
 }
 
 func (e *Env) Stat() []byte {
@@ -38,8 +36,5 @@ func (e *Env) BeginTxn(parent *Txn, flags uint32) *Txn {
 	}
 	expFlg = flags
 	lmdbBegin()
-	return &Txn{
-		envID: e.id,
-		id:    txnID,
-	}
+	return &Txn{txnID}
 }

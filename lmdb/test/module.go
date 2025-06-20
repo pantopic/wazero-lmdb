@@ -12,6 +12,7 @@ func main() {}
 var env *lmdb.Env
 var txn *lmdb.Txn
 var dbi uint32
+var cur *lmdb.Cursor
 
 //export open
 func open() {
@@ -45,6 +46,11 @@ func dbstat() uint64 {
 	return sliceToPtr(data)
 }
 
+//export dbdrop
+func dbdrop() {
+	txn.DbDrop(dbi)
+}
+
 //export set
 func set() {
 	txn.Put(dbi, []byte(`a`), []byte(`1`))
@@ -56,6 +62,11 @@ func get() {
 	if string(v) != `1` {
 		panic(`wrong value`)
 	}
+}
+
+//export del
+func del() {
+	txn.Del(dbi, []byte(`a`), nil)
 }
 
 //export commit
@@ -97,6 +108,55 @@ func close() {
 	env.Close()
 }
 
+//export cursoropen
+func cursoropen() {
+	dbi = txn.DbOpen("test", lmdb.Create)
+	cur = txn.CursorOpen(dbi)
+}
+
+//export cursorfirst
+func cursorfirst() {
+	k, v := cur.Get(nil, nil, lmdb.First)
+	if string(k) != `b` {
+		panic(`wrong key: ` + string(k))
+	}
+	if string(v) != `2` {
+		panic(`wrong value: ` + string(v))
+	}
+}
+
+//export cursorput
+func cursorput() {
+	cur.Put([]byte(`c`), []byte(`3`), 0)
+}
+
+//export cursorcurrent
+func cursorcurrent() {
+	k, v := cur.Get(nil, nil, lmdb.GetCurrent)
+	if string(k) != `c` {
+		panic(`wrong key: ` + string(k))
+	}
+	if string(v) != `3` {
+		panic(`wrong value: ` + string(v))
+	}
+}
+
+//export cursornext
+func cursornext() {
+	k, v := cur.Get(nil, nil, lmdb.Next)
+	if string(k) != `c` {
+		panic(`wrong key: ` + string(k))
+	}
+	if string(v) != `3` {
+		panic(`wrong value: ` + string(v))
+	}
+}
+
+//export cursorclose
+func cursorclose() {
+	cur.Close()
+}
+
 func sliceToPtr(b []byte) uint64 {
 	return uint64(uintptr(unsafe.Pointer(&b[0])))<<32 + uint64(len(b))
 }
@@ -116,3 +176,11 @@ var _ = get
 var _ = get2
 var _ = beginread
 var _ = stress
+var _ = dbdrop
+var _ = del
+var _ = cursoropen
+var _ = cursorfirst
+var _ = cursorput
+var _ = cursornext
+var _ = cursorcurrent
+var _ = cursorclose

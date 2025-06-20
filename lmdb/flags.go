@@ -6,7 +6,9 @@ const (
 	Readonly    uint32 = 0x20000
 	Create      uint32 = 0x40000
 	NoReadahead uint32 = 0x800000
+)
 
+const (
 	First uint32 = iota
 	FirstDup
 	GetBoth
