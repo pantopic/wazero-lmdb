@@ -1,4 +1,4 @@
-module github.com/pantopic/plugin-lmdb
+module github.com/pantopic/wazero-lmdb
 
 go 1.24.3
 

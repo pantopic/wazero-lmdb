@@ -1,6 +1,6 @@
-# Pantopic LMDB Plugin
+# Wazero LMDB
 
-A wazero host module, ABI and guest SDK providing LMDB for WASI modules deployed to Pantopic clusters.
+A wazero host module, ABI and guest SDK providing LMDB for WASI modules.
 
 [![Go Reference](https://godoc.org/github.com/pantopic/plugin-lmdb?status.svg)](https://godoc.org/github.com/pantopic/plugin-lmdb)
 [![License](https://img.shields.io/badge/License-Apache_2.0-dd6600.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -15,7 +15,7 @@ package main
 import (
 	"unsafe"
 
-	"github.com/pantopic/plugin-lmdb/lmdb"
+	"github.com/pantopic/wazero-lmdb/lmdb"
 )
 
 func main() {}

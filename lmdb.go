@@ -1,4 +1,4 @@
-package plugin_lmdb
+package wazero_lmdb
 
 import (
 	"context"
@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	DefaultCtxKeyMeta     = `plugin_lmdb_meta`
+	DefaultCtxKeyMeta     = `module_lmdb_meta`
 	DefaultCtxKeyTenantID = `tenant_id`
 	DefaultCtxKeyLocalDir = `tenant_local_dir`
 	DefaultCtxKeyBlockDir = `tenant_block_dir`
@@ -48,7 +48,7 @@ type meta struct {
 	curID     uint32
 }
 
-type shard struct {
+type tenant struct {
 	sync.RWMutex
 
 	envID    uint32
@@ -56,30 +56,30 @@ type shard struct {
 	envs     map[uint32]*lmdb.Env
 }
 
-func newShard() *shard {
-	return &shard{
+func newTenant() *tenant {
+	return &tenant{
 		envNames: map[string]uint32{},
 		envs:     map[uint32]*lmdb.Env{},
 	}
 }
 
-type plugin struct {
+type module struct {
 	sync.RWMutex
 
 	ctxKeyMeta     string
 	ctxKeyTenantID string
 	ctxKeyLocalDir string
 	ctxKeyBlockDir string
-	shards         map[uint64]*shard
+	tenants        map[uint64]*tenant
 }
 
-func New(opts ...Option) *plugin {
-	p := &plugin{
+func New(opts ...Option) *module {
+	p := &module{
 		ctxKeyMeta:     DefaultCtxKeyMeta,
 		ctxKeyTenantID: DefaultCtxKeyTenantID,
 		ctxKeyLocalDir: DefaultCtxKeyLocalDir,
 		ctxKeyBlockDir: DefaultCtxKeyBlockDir,
-		shards:         map[uint64]*shard{},
+		tenants:        map[uint64]*tenant{},
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -87,7 +87,7 @@ func New(opts ...Option) *plugin {
 	return p
 }
 
-func (p *plugin) InitContext(ctx context.Context, m api.Module) context.Context {
+func (p *module) InitContext(ctx context.Context, m api.Module) context.Context {
 	init := m.ExportedFunction(`lmdb`)
 	stack, err := init.Call(ctx)
 	if err != nil {
@@ -112,7 +112,7 @@ func (p *plugin) InitContext(ctx context.Context, m api.Module) context.Context 
 	return context.WithValue(ctx, p.ctxKeyMeta, meta)
 }
 
-func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
+func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 	builder := runtime.NewHostModuleBuilder("lmdb")
 	defer func() {
 		if _, err := builder.Instantiate(ctx); err != nil {
@@ -124,23 +124,23 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 	}
 	for name, fn := range map[string]any{
 		"EnvOpen": func(ctx context.Context, name string, flags uint32) uint32 {
-			shardID := get[uint64](ctx, p.ctxKeyTenantID)
+			tenantID := get[uint64](ctx, p.ctxKeyTenantID)
 			p.RLock()
-			shard, ok := p.shards[shardID]
+			tenant, ok := p.tenants[tenantID]
 			p.RUnlock()
 			if !ok {
 				p.Lock()
-				shard, ok = p.shards[shardID]
+				tenant, ok = p.tenants[tenantID]
 				if !ok {
-					shard = newShard()
-					p.shards[shardID] = shard
+					tenant = newTenant()
+					p.tenants[tenantID] = tenant
 				}
 				p.Unlock()
 			}
 			if ok {
-				shard.RLock()
-				envID, ok := shard.envNames[name]
-				shard.RUnlock()
+				tenant.RLock()
+				envID, ok := tenant.envNames[name]
+				tenant.RUnlock()
 				if ok {
 					return envID
 				}
@@ -165,12 +165,12 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			if err != nil {
 				panic(err)
 			}
-			shard.Lock()
-			defer shard.Unlock()
-			shard.envID++
-			shard.envs[shard.envID] = env
-			shard.envNames[name] = shard.envID
-			return shard.envID
+			tenant.Lock()
+			defer tenant.Unlock()
+			tenant.envID++
+			tenant.envs[tenant.envID] = env
+			tenant.envNames[name] = tenant.envID
+			return tenant.envID
 		},
 		"EnvStat": func(env *lmdb.Env) *lmdb.Stat {
 			stat, err := env.Stat()
@@ -180,43 +180,43 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			return stat
 		},
 		"EnvClose": func(ctx context.Context, envID uint32) {
-			shardID := get[uint64](ctx, p.ctxKeyTenantID)
+			tenantID := get[uint64](ctx, p.ctxKeyTenantID)
 			p.Lock()
 			defer p.Unlock()
-			shard, ok := p.shards[shardID]
+			tenant, ok := p.tenants[tenantID]
 			if !ok {
 				return
 			}
-			shard.Lock()
-			defer shard.Unlock()
-			env, ok := shard.envs[envID]
+			tenant.Lock()
+			defer tenant.Unlock()
+			env, ok := tenant.envs[envID]
 			if !ok {
 				return
 			}
 			if err := env.Close(); err != nil {
 				panic(err.Error())
 			}
-			delete(shard.envs, envID)
-			for name, id := range shard.envNames {
+			delete(tenant.envs, envID)
+			for name, id := range tenant.envNames {
 				if id == envID {
-					delete(shard.envNames, name)
+					delete(tenant.envNames, name)
 				}
 			}
-			if len(shard.envs) == 0 {
-				delete(p.shards, shardID)
+			if len(tenant.envs) == 0 {
+				delete(p.tenants, tenantID)
 			}
 		},
 		"EnvDelete": func(ctx context.Context, envID uint32) {
-			shardID := get[uint64](ctx, p.ctxKeyTenantID)
+			tenantID := get[uint64](ctx, p.ctxKeyTenantID)
 			p.Lock()
 			defer p.Unlock()
-			shard, ok := p.shards[shardID]
+			tenant, ok := p.tenants[tenantID]
 			if !ok {
 				return
 			}
-			shard.Lock()
-			defer shard.Unlock()
-			env, ok := shard.envs[envID]
+			tenant.Lock()
+			defer tenant.Unlock()
+			env, ok := tenant.envs[envID]
 			if !ok {
 				return
 			}
@@ -230,10 +230,10 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			if err := os.Remove(path); err != nil {
 				panic(err)
 			}
-			delete(shard.envs, envID)
-			for name, id := range shard.envNames {
+			delete(tenant.envs, envID)
+			for name, id := range tenant.envNames {
 				if id == envID {
-					delete(shard.envNames, name)
+					delete(tenant.envNames, name)
 				}
 			}
 		},
@@ -426,16 +426,16 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 	}
 }
 
-func (p *plugin) ShardClose(ctx context.Context) {
-	shardID := get[uint64](ctx, p.ctxKeyTenantID)
+func (p *module) TenantClose(ctx context.Context) {
+	tenantID := get[uint64](ctx, p.ctxKeyTenantID)
 	p.Lock()
 	defer p.Unlock()
-	shard, ok := p.shards[shardID]
+	tenant, ok := p.tenants[tenantID]
 	if !ok {
 		return
 	}
-	delete(p.shards, shardID)
-	envs := shard.envs
+	delete(p.tenants, tenantID)
+	envs := tenant.envs
 	for _, env := range envs {
 		if err := env.Close(); err != nil {
 			panic(err)
@@ -443,7 +443,7 @@ func (p *plugin) ShardClose(ctx context.Context) {
 	}
 }
 
-func (p *plugin) ShardDelete(ctx context.Context) {
+func (p *module) TenantDelete(ctx context.Context) {
 	if err := os.RemoveAll(get[string](ctx, p.ctxKeyLocalDir)); err != nil {
 		panic(err)
 	}
@@ -452,15 +452,15 @@ func (p *plugin) ShardDelete(ctx context.Context) {
 	}
 }
 
-func (p *plugin) ShardSync(ctx context.Context) {
-	shardID := get[uint64](ctx, p.ctxKeyTenantID)
+func (p *module) TenantSync(ctx context.Context) {
+	tenantID := get[uint64](ctx, p.ctxKeyTenantID)
 	p.RLock()
 	defer p.RUnlock()
-	shard, ok := p.shards[shardID]
+	tenant, ok := p.tenants[tenantID]
 	if !ok {
 		return
 	}
-	envs := shard.envs
+	envs := tenant.envs
 	for _, env := range envs {
 		if err := env.Sync(true); err != nil {
 			panic(err)
@@ -468,7 +468,7 @@ func (p *plugin) ShardSync(ctx context.Context) {
 	}
 }
 
-func (p *plugin) Reset(ctx context.Context) {
+func (p *module) Reset(ctx context.Context) {
 	meta := get[*meta](ctx, p.ctxKeyMeta)
 	for id, txn := range meta.txn {
 		txn.Abort()
@@ -482,11 +482,11 @@ func (p *plugin) Reset(ctx context.Context) {
 	meta.txnID = 0
 }
 
-func (p *plugin) Stop() {
+func (p *module) Stop() {
 	p.RLock()
 	defer p.RUnlock()
-	for _, shard := range p.shards {
-		for _, env := range shard.envs {
+	for _, tenant := range p.tenants {
+		for _, env := range tenant.envs {
 			if err := env.Sync(true); err != nil {
 				panic(err.Error())
 			}
@@ -495,19 +495,19 @@ func (p *plugin) Stop() {
 			}
 		}
 	}
-	p.shards = map[uint64]*shard{}
+	p.tenants = map[uint64]*tenant{}
 }
 
-func (p *plugin) env(ctx context.Context, m api.Module, meta *meta) *lmdb.Env {
+func (p *module) env(ctx context.Context, m api.Module, meta *meta) *lmdb.Env {
 	p.RLock()
 	defer p.RUnlock()
-	shardID := get[uint64](ctx, p.ctxKeyTenantID)
-	shard, ok := p.shards[shardID]
+	tenantID := get[uint64](ctx, p.ctxKeyTenantID)
+	tenant, ok := p.tenants[tenantID]
 	if !ok {
-		log.Panicf("Shard not found: %d", shardID)
+		log.Panicf("Tenant not found: %d", tenantID)
 	}
 	envID := envID(m, meta)
-	env, ok := shard.envs[envID]
+	env, ok := tenant.envs[envID]
 	if !ok {
 		log.Panicf("Env not found: %d", envID)
 	}

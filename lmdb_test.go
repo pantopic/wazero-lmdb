@@ -1,4 +1,4 @@
-package plugin_lmdb
+package wazero_lmdb
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 //go:embed test\.wasm
 var binary []byte
 
-func TestPlugin(t *testing.T) {
+func TestModule(t *testing.T) {
 	ctx := context.Background()
 	runtimeConfig := wazero.NewRuntimeConfig().
 		WithCoreFeatures(api.CoreFeaturesV2)
@@ -25,15 +25,15 @@ func TestPlugin(t *testing.T) {
 	r := wazero.NewRuntimeWithConfig(ctx, runtimeConfig)
 	wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
-	path := "/tmp/pantopic/plugin-lmdb"
+	path := "/tmp/pantopic/module-lmdb"
 	os.RemoveAll(path)
-	plugin := New(
+	module := New(
 		WithCtxKeyMeta(`meta`),
 		WithCtxKeyTenantID(`tenant_id`),
 		WithCtxKeyLocalDir(`local_dir`),
 		WithCtxKeyBlockDir(`block_dir`),
 	)
-	plugin.Register(ctx, r)
+	module.Register(ctx, r)
 
 	compiled, err := r.CompileModule(ctx, binary)
 	if err != nil {
@@ -46,17 +46,17 @@ func TestPlugin(t *testing.T) {
 		return
 	}
 
-	ctx = plugin.InitContext(ctx, mod)
-	meta := get[*meta](ctx, plugin.ctxKeyMeta)
+	ctx = module.InitContext(ctx, mod)
+	meta := get[*meta](ctx, module.ctxKeyMeta)
 	if readUint32(mod, meta.ptrKeyMax) != 511 {
 		t.Errorf("incorrect maximum key length: %#v", meta)
 		return
 	}
 
-	shardID := 1
-	ctx = context.WithValue(ctx, plugin.ctxKeyTenantID, uint64(shardID))
-	ctx = context.WithValue(ctx, plugin.ctxKeyLocalDir, fmt.Sprintf(`%s/local/%016x`, path, shardID))
-	ctx = context.WithValue(ctx, plugin.ctxKeyBlockDir, fmt.Sprintf(`%s/block/%016x`, path, shardID))
+	tenantID := 1
+	ctx = context.WithValue(ctx, module.ctxKeyTenantID, uint64(tenantID))
+	ctx = context.WithValue(ctx, module.ctxKeyLocalDir, fmt.Sprintf(`%s/local/%016x`, path, tenantID))
+	ctx = context.WithValue(ctx, module.ctxKeyBlockDir, fmt.Sprintf(`%s/block/%016x`, path, tenantID))
 	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
@@ -308,13 +308,13 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
-	plugin.Reset(ctx)
-	plugin.ShardSync(ctx)
-	plugin.ShardClose(ctx)
-	plugin.ShardDelete(ctx)
-	plugin.ShardSync(ctx)
-	plugin.ShardClose(ctx)
-	plugin.ShardDelete(ctx)
+	module.Reset(ctx)
+	module.TenantSync(ctx)
+	module.TenantClose(ctx)
+	module.TenantDelete(ctx)
+	module.TenantSync(ctx)
+	module.TenantClose(ctx)
+	module.TenantDelete(ctx)
 	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
@@ -438,5 +438,5 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
-	plugin.Stop()
+	module.Stop()
 }
