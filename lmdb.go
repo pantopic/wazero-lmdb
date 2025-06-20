@@ -43,12 +43,8 @@ type meta struct {
 	ptrVal    uint32
 	txn       map[uint32]*lmdb.Txn
 	cursor    map[uint32]*lmdb.Cursor
-	filter    map[uint32]*filter
 	txnID     uint32
 	curID     uint32
-}
-
-type filter struct {
 }
 
 type shard struct {
@@ -87,7 +83,6 @@ func (p *plugin) InitContext(ctx context.Context, m api.Module) context.Context 
 	meta := &meta{
 		txn:    make(map[uint32]*lmdb.Txn),
 		cursor: make(map[uint32]*lmdb.Cursor),
-		filter: make(map[uint32]*filter),
 	}
 	ptr := uint32(stack[0])
 	meta.ptrKeyMax, _ = m.Memory().ReadUint32Le(ptr)
@@ -442,7 +437,6 @@ func (p *plugin) Reset(ctx context.Context) {
 		cur.Close()
 		delete(meta.cursor, id)
 	}
-	clear(meta.filter)
 	meta.curID = 0
 	meta.txnID = 0
 }
