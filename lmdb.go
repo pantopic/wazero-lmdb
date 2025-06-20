@@ -482,19 +482,19 @@ func get[T any](ctx context.Context, key string) T {
 }
 
 func key(m api.Module, meta *meta) []byte {
-	return read(m, meta.ptrKeyMax, meta.ptrKey)[:readUint32(m, meta.ptrKeyLen)]
+	return read(m, meta.ptrKey, meta.ptrKeyLen, meta.ptrKeyMax)
 }
 
 func val(m api.Module, meta *meta) []byte {
-	return read(m, meta.ptrValMax, meta.ptrVal)[:readUint32(m, meta.ptrValLen)]
+	return read(m, meta.ptrVal, meta.ptrValLen, meta.ptrValMax)
 }
 
 func keyBuf(m api.Module, meta *meta) []byte {
-	return read(m, meta.ptrKeyMax, meta.ptrKey)[:0]
+	return read(m, meta.ptrKey, 0, meta.ptrKeyMax)
 }
 
 func valBuf(m api.Module, meta *meta) []byte {
-	return read(m, meta.ptrValMax, meta.ptrVal)[:0]
+	return read(m, meta.ptrVal, 0, meta.ptrValMax)
 }
 
 func envID(m api.Module, meta *meta) uint32 {
@@ -518,12 +518,12 @@ func cur(m api.Module, meta *meta) (cur *lmdb.Cursor) {
 	return
 }
 
-func read(m api.Module, ptrLen, ptrData uint32) (buf []byte) {
-	buf, ok := m.Memory().Read(ptrData, readUint32(m, ptrLen))
+func read(m api.Module, ptrData, ptrLen, ptrMax uint32) (buf []byte) {
+	buf, ok := m.Memory().Read(ptrData, readUint32(m, ptrMax))
 	if !ok {
 		log.Panicf("Memory.Read(%d, %d) out of range", ptrData, ptrLen)
 	}
-	return
+	return buf[:readUint32(m, ptrLen)]
 }
 
 func readUint32(m api.Module, ptr uint32) (val uint32) {
