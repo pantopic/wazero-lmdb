@@ -5,27 +5,20 @@ build:
 	@go build -ldflags="-s -w" -o _dist/pantopic
 
 wasm:
-	@tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o test.wasm test/module.go
+	@tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o host/test.wasm test/module.go
 
 wasm-prod:
-	@tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o test.prod.wasm -no-debug test/module.go
+	@tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o host/test.prod.wasm -no-debug test/module.go
 
 test:
-	@go test
-
-integration:
-	@go test ./...
-
-bench:
-	@go test -bench=. -run=_ -v
-
-unit:
-	@go test ./... -tags unit -v
+	@go test ./host
 
 cover:
 	@mkdir -p _dist
-	@go test -coverprofile=_dist/coverage.out -v
+	@go test ./host -coverprofile=_dist/coverage.out -v
 	@go tool cover -html=_dist/coverage.out -o _dist/coverage.html
 
 cloc:
-	@cloc . --exclude-dir=_example,_dist,internal,cmd --exclude-ext=pb.go
+	@cloc ./host --exclude-dir=_example,_dist,internal,cmd --exclude-ext=pb.go
+
+.PHONY: all test clean

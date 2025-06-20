@@ -2,16 +2,16 @@
 
 A [wazero](github.com/tetratelabs/wazero) host module, ABI and guest SDK providing [LMDB](github.com/PowerDNS/lmdb-go/lmdb) for WASI modules.
 
-[![Go Reference](https://godoc.org/github.com/pantopic/wazero-lmdb?status.svg)](https://godoc.org/github.com/pantopic/wazero-lmdb)
+[![Go Reference](https://godoc.org/github.com/pantopic/wazero-lmdb/host?status.svg)](https://godoc.org/github.com/pantopic/wazero-lmdb/host)
 [![License](https://img.shields.io/badge/License-Apache_2.0-dd6600.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/wazero-lmdb?4)](https://goreportcard.com/report/github.com/pantopic/wazero-lmdb)
+[![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/wazero-lmdb/host)](https://goreportcard.com/report/github.com/pantopic/wazero-lmdb/host)
 [![Go Coverage](https://github.com/pantopic/wazero-lmdb/wiki/coverage.svg)](https://raw.githack.com/wiki/pantopic/wazero-lmdb/coverage.html)
 
 First register the host module with the runtime
 
 ```go
 import (
-	"github.com/pantopic/wazero-lmdb"
+	"github.com/pantopic/wazero-lmdb/host"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
@@ -63,4 +63,5 @@ The [ABI](lmdb/abi.go) is ~130 lines of code and the [SDK](lmdb/sdk.go) is ~200 
 to port this guest SDK if you want to use use this Host Module in other guest languages (i.e. Rust).
 Contributions welcome.
 
-Wazero prides itself on having no dependencies and neither does [lmdb-go](github.com/PowerDNS/lmdb-go/lmdb) so your [go.sum](go.sum) remains tidy.
+Wazero prides itself on having no dependencies and neither does [lmdb-go](github.com/PowerDNS/lmdb-go/lmdb) so your
+[go.sum](go.sum) should remain tidy.
