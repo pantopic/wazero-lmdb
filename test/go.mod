@@ -1,5 +1,5 @@
-module github.com/pantopic/plugin-lmdb/test
+module github.com/pantopic/wazero-lmdb/test
 
 go 1.24.3
 
-require github.com/pantopic/plugin-lmdb/lmdb v0.0.0-20250620152623-c81458f455aa
+require github.com/pantopic/wazero-lmdb/lmdb v0.0.0-20250620154531-c52ca062a1dd

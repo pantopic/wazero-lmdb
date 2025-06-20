@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"unsafe"
 
-	"github.com/pantopic/plugin-lmdb/lmdb"
+	"github.com/pantopic/wazero-lmdb/lmdb"
 )
 
 func main() {}

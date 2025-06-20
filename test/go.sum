@@ -1,2 +1,2 @@
-github.com/pantopic/plugin-lmdb/lmdb v0.0.0-20250620152623-c81458f455aa h1:C77LHMrQAdymcsKNJffJ1f5mKaF7ThGtivP+9sXU1b4=
-github.com/pantopic/plugin-lmdb/lmdb v0.0.0-20250620152623-c81458f455aa/go.mod h1:Z/p2LYAniTJb1XEGW9j5Et/eJrUBQmo9DxLEXcUL0MM=
+github.com/pantopic/wazero-lmdb/lmdb v0.0.0-20250620154531-c52ca062a1dd h1:sfeFwnZM0ETPnGaLcyy4LsFwoMyxZf+5ejPCDw3SYm8=
+github.com/pantopic/wazero-lmdb/lmdb v0.0.0-20250620154531-c52ca062a1dd/go.mod h1:lBLhn7rk/tw2eWyO3xeNUlWVEIrKPplKwSGI/tO0iLU=
