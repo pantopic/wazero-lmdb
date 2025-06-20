@@ -20,6 +20,16 @@ func open() {
 	env = lmdb.Open("test", lmdb.Create)
 }
 
+//export openblock
+func openblock() {
+	env = lmdb.Open("test-2", lmdb.Create|lmdb.Block)
+}
+
+//export delete
+func delete() {
+	env.Delete()
+}
+
 //export stat
 func stat() uint64 {
 	data := env.Stat()
@@ -220,3 +230,5 @@ var _ = cursordel
 var _ = view
 var _ = update
 var _ = updatefail
+var _ = openblock
+var _ = delete

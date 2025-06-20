@@ -27,7 +27,12 @@ func TestPlugin(t *testing.T) {
 
 	path := "/tmp/pantopic/plugin-lmdb"
 	os.RemoveAll(path)
-	plugin := New()
+	plugin := New(
+		WithCtxKeyMeta(`meta`),
+		WithCtxKeyTenantID(`tenant_id`),
+		WithCtxKeyLocalDir(`local_dir`),
+		WithCtxKeyBlockDir(`block_dir`),
+	)
 	plugin.Register(ctx, r)
 
 	compiled, err := r.CompileModule(ctx, binary)
@@ -42,15 +47,16 @@ func TestPlugin(t *testing.T) {
 	}
 
 	ctx = plugin.InitContext(ctx, mod)
-	meta := get[*meta](ctx, ctxKeyMeta)
+	meta := get[*meta](ctx, plugin.ctxKeyMeta)
 	if readUint32(mod, meta.ptrKeyMax) != 511 {
 		t.Errorf("incorrect maximum key length: %#v", meta)
 		return
 	}
 
 	shardID := 1
-	ctx = context.WithValue(ctx, ctxKeyShardID, uint64(shardID))
-	ctx = context.WithValue(ctx, ctxKeyDataDir, fmt.Sprintf(`%s/%016x`, path, shardID))
+	ctx = context.WithValue(ctx, plugin.ctxKeyTenantID, uint64(shardID))
+	ctx = context.WithValue(ctx, plugin.ctxKeyLocalDir, fmt.Sprintf(`%s/local/%016x`, path, shardID))
+	ctx = context.WithValue(ctx, plugin.ctxKeyBlockDir, fmt.Sprintf(`%s/block/%016x`, path, shardID))
 	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
@@ -356,6 +362,80 @@ func TestPlugin(t *testing.T) {
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
 	if !strings.Contains(string(buf), `"Entries":0`) {
 		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
+	if _, err := mod.ExportedFunction("set").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
+	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	if !strings.Contains(string(buf), `"Entries":1`) {
+		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
+	if _, err := mod.ExportedFunction("close").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("close").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("openblock").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("db").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
+	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	if !strings.Contains(string(buf), `"Entries":0`) {
+		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
+	if _, err := mod.ExportedFunction("set").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
+	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	if !strings.Contains(string(buf), `"Entries":1`) {
+		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
+	if _, err := mod.ExportedFunction("delete").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("delete").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("openblock").Call(ctx); err != nil {
+		t.Errorf("%v", err)
 		return
 	}
 	plugin.Stop()

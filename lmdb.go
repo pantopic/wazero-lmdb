@@ -3,7 +3,6 @@ package plugin_lmdb
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -15,13 +14,15 @@ import (
 )
 
 const (
-	Readonly = lmdb.Readonly
+	// Flag for EnvOpen indicating selection of block storage directory rather than local storage.
+	Block uint = 1 << 31
 )
 
 var (
-	ctxKeyMeta    = `pantopic_plugin_lmdb_meta`
-	ctxKeyShardID = `pantopic_shard_id`
-	ctxKeyDataDir = `pantopic_shard_data_dir`
+	DefaultCtxKeyMeta     = `plugin_lmdb_meta`
+	DefaultCtxKeyTenantID = `tenant_id`
+	DefaultCtxKeyLocalDir = `tenant_local_dir`
+	DefaultCtxKeyBlockDir = `tenant_block_dir`
 
 	optEnv    uint = lmdb.NoMemInit | lmdb.NoReadahead | lmdb.NoSync | lmdb.NoMetaSync | lmdb.NoLock | lmdb.NoSubdir
 	openFlags uint = lmdb.NoReadahead | lmdb.Create
@@ -65,13 +66,25 @@ func newShard() *shard {
 type plugin struct {
 	sync.RWMutex
 
-	shards map[uint64]*shard
+	ctxKeyMeta     string
+	ctxKeyTenantID string
+	ctxKeyLocalDir string
+	ctxKeyBlockDir string
+	shards         map[uint64]*shard
 }
 
-func New() *plugin {
-	return &plugin{
-		shards: map[uint64]*shard{},
+func New(opts ...Option) *plugin {
+	p := &plugin{
+		ctxKeyMeta:     DefaultCtxKeyMeta,
+		ctxKeyTenantID: DefaultCtxKeyTenantID,
+		ctxKeyLocalDir: DefaultCtxKeyLocalDir,
+		ctxKeyBlockDir: DefaultCtxKeyBlockDir,
+		shards:         map[uint64]*shard{},
 	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
 }
 
 func (p *plugin) InitContext(ctx context.Context, m api.Module) context.Context {
@@ -96,7 +109,7 @@ func (p *plugin) InitContext(ctx context.Context, m api.Module) context.Context 
 	meta.ptrFlg, _ = m.Memory().ReadUint32Le(ptr + 32)
 	meta.ptrKey, _ = m.Memory().ReadUint32Le(ptr + 36)
 	meta.ptrVal, _ = m.Memory().ReadUint32Le(ptr + 40)
-	return context.WithValue(ctx, ctxKeyMeta, meta)
+	return context.WithValue(ctx, p.ctxKeyMeta, meta)
 }
 
 func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
@@ -111,7 +124,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 	}
 	for name, fn := range map[string]any{
 		"EnvOpen": func(ctx context.Context, name string, flags uint32) uint32 {
-			shardID := get[uint64](ctx, ctxKeyShardID)
+			shardID := get[uint64](ctx, p.ctxKeyTenantID)
 			p.RLock()
 			shard, ok := p.shards[shardID]
 			p.RUnlock()
@@ -132,7 +145,12 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 					return envID
 				}
 			}
-			path := get[string](ctx, ctxKeyDataDir)
+			var path string
+			if uint(flags)&Block > 0 {
+				path = get[string](ctx, p.ctxKeyBlockDir)
+			} else {
+				path = get[string](ctx, p.ctxKeyLocalDir)
+			}
 			if err := os.MkdirAll(path, 0755); err != nil {
 				panic(err)
 			}
@@ -162,7 +180,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			return stat
 		},
 		"EnvClose": func(ctx context.Context, envID uint32) {
-			shardID := get[uint64](ctx, ctxKeyShardID)
+			shardID := get[uint64](ctx, p.ctxKeyTenantID)
 			p.Lock()
 			defer p.Unlock()
 			shard, ok := p.shards[shardID]
@@ -188,10 +206,35 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 				delete(p.shards, shardID)
 			}
 		},
-		"EnvDelete": func(ctx context.Context, name string) {
-			path := fmt.Sprintf(`%s/%s.mdb`, get[string](ctx, ctxKeyDataDir), name)
+		"EnvDelete": func(ctx context.Context, envID uint32) {
+			shardID := get[uint64](ctx, p.ctxKeyTenantID)
+			p.Lock()
+			defer p.Unlock()
+			shard, ok := p.shards[shardID]
+			if !ok {
+				return
+			}
+			shard.Lock()
+			defer shard.Unlock()
+			env, ok := shard.envs[envID]
+			if !ok {
+				return
+			}
+			path, err := env.Path()
+			if err != nil {
+				panic(err)
+			}
+			if err := env.Close(); err != nil {
+				panic(err)
+			}
 			if err := os.Remove(path); err != nil {
 				panic(err)
+			}
+			delete(shard.envs, envID)
+			for name, id := range shard.envNames {
+				if id == envID {
+					delete(shard.envNames, name)
+				}
 			}
 		},
 		"Begin": func(env *lmdb.Env, parent *lmdb.Txn, flags uint32) *lmdb.Txn {
@@ -281,23 +324,18 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 		switch fn := fn.(type) {
 		case func(context.Context, string, uint32) uint32:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				envID := fn(ctx, string(key(m, meta)), flags(m, meta))
 				writeUint32(m, meta.ptrEnv, uint32(envID))
 			})
-		case func(context.Context, string):
-			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
-				fn(ctx, string(key(m, meta)))
-			})
 		case func(context.Context, uint32):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				fn(ctx, envID(m, meta))
 			})
 		case func(*lmdb.Env) *lmdb.Stat:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				stat := fn(p.env(ctx, m, meta))
 				data, _ := json.Marshal(stat)
 				val := append(valBuf(m, meta), data...)
@@ -305,18 +343,18 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			})
 		case func(*lmdb.Txn, string, uint32) lmdb.DBI:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				dbi := fn(txn(m, meta), string(key(m, meta)), flags(m, meta))
 				writeUint32(m, meta.ptrDbi, uint32(dbi))
 			})
 		case func(*lmdb.Txn, lmdb.DBI):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				fn(txn(m, meta), dbi(m, meta))
 			})
 		case func(*lmdb.Txn, lmdb.DBI) *lmdb.Stat:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				stat := fn(txn(m, meta), dbi(m, meta))
 				data, _ := json.Marshal(stat)
 				val := append(valBuf(m, meta), data...)
@@ -324,40 +362,40 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			})
 		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				fn(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta))
 			})
 		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte) []byte:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				val := fn(txn(m, meta), dbi(m, meta), key(m, meta), valBuf(m, meta))
 				writeUint32(m, meta.ptrValLen, uint32(len(val)))
 			})
 		case func(*lmdb.Cursor, uint32):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				fn(cur(m, meta), flags(m, meta))
 			})
 		case func(*lmdb.Cursor):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				fn(cur(m, meta))
 			})
 		case func(*lmdb.Cursor, []byte, []byte, uint32) ([]byte, []byte):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				key, val := fn(cur(m, meta), key(m, meta), val(m, meta), flags(m, meta))
 				writeUint32(m, meta.ptrKeyLen, uint32(len(key)))
 				writeUint32(m, meta.ptrValLen, uint32(len(val)))
 			})
 		case func(*lmdb.Cursor, []byte, []byte, uint32):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				fn(cur(m, meta), key(m, meta), val(m, meta), flags(m, meta))
 			})
 		case func(*lmdb.Txn, lmdb.DBI) *lmdb.Cursor:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				cur := fn(txn(m, meta), dbi(m, meta))
 				meta.curID++
 				meta.cursor[meta.curID] = cur
@@ -365,7 +403,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			})
 		case func(*lmdb.Env, *lmdb.Txn, uint32) *lmdb.Txn:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				var parent *lmdb.Txn
 				parentID := readUint32(m, meta.ptrTxn)
 				if parentID > 0 {
@@ -378,7 +416,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 			})
 		case func(*lmdb.Txn):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, ctxKeyMeta)
+				meta := get[*meta](ctx, p.ctxKeyMeta)
 				fn(txn(m, meta))
 				delete(meta.txn, txnID(m, meta))
 			})
@@ -389,7 +427,7 @@ func (p *plugin) Register(ctx context.Context, runtime wazero.Runtime) {
 }
 
 func (p *plugin) ShardClose(ctx context.Context) {
-	shardID := get[uint64](ctx, ctxKeyShardID)
+	shardID := get[uint64](ctx, p.ctxKeyTenantID)
 	p.Lock()
 	defer p.Unlock()
 	shard, ok := p.shards[shardID]
@@ -406,13 +444,16 @@ func (p *plugin) ShardClose(ctx context.Context) {
 }
 
 func (p *plugin) ShardDelete(ctx context.Context) {
-	if err := os.RemoveAll(get[string](ctx, ctxKeyDataDir)); err != nil {
+	if err := os.RemoveAll(get[string](ctx, p.ctxKeyLocalDir)); err != nil {
+		panic(err)
+	}
+	if err := os.RemoveAll(get[string](ctx, p.ctxKeyBlockDir)); err != nil {
 		panic(err)
 	}
 }
 
 func (p *plugin) ShardSync(ctx context.Context) {
-	shardID := get[uint64](ctx, ctxKeyShardID)
+	shardID := get[uint64](ctx, p.ctxKeyTenantID)
 	p.RLock()
 	defer p.RUnlock()
 	shard, ok := p.shards[shardID]
@@ -428,7 +469,7 @@ func (p *plugin) ShardSync(ctx context.Context) {
 }
 
 func (p *plugin) Reset(ctx context.Context) {
-	meta := get[*meta](ctx, ctxKeyMeta)
+	meta := get[*meta](ctx, p.ctxKeyMeta)
 	for id, txn := range meta.txn {
 		txn.Abort()
 		delete(meta.txn, id)
@@ -460,7 +501,7 @@ func (p *plugin) Stop() {
 func (p *plugin) env(ctx context.Context, m api.Module, meta *meta) *lmdb.Env {
 	p.RLock()
 	defer p.RUnlock()
-	shardID := get[uint64](ctx, ctxKeyShardID)
+	shardID := get[uint64](ctx, p.ctxKeyTenantID)
 	shard, ok := p.shards[shardID]
 	if !ok {
 		log.Panicf("Shard not found: %d", shardID)
