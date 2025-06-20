@@ -11,11 +11,11 @@ wasm-prod:
 	@cd test && tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o ../test.prod.wasm -no-debug test/module.go
 
 test:
-	@go test ./host
+	@cd ./host && go test .
 
 cover:
 	@mkdir -p _dist
-	@go test ./host -coverprofile=_dist/coverage.out -v
+	@cd ./host && go test . -coverprofile=../_dist/coverage.out -v
 	@go tool cover -html=_dist/coverage.out -o _dist/coverage.html
 
 cloc:
