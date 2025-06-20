@@ -152,6 +152,11 @@ func cursornext() {
 	}
 }
 
+//export cursordel
+func cursordel() {
+	cur.Del(lmdb.Current)
+}
+
 //export cursorclose
 func cursorclose() {
 	cur.Close()
@@ -184,3 +189,4 @@ var _ = cursorput
 var _ = cursornext
 var _ = cursorcurrent
 var _ = cursorclose
+var _ = cursordel

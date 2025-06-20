@@ -226,6 +226,20 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
+	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
+	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	if !strings.Contains(string(buf), `"Entries":2`) {
+		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
+	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
 	if _, err := mod.ExportedFunction("cursoropen").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
@@ -238,7 +252,25 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
-	if _, err := mod.ExportedFunction("abort").Call(ctx); err != nil {
+	if _, err := mod.ExportedFunction("cursordel").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
+	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+	if !strings.Contains(string(buf), `"Entries":1`) {
+		t.Errorf("Wrong number of entries: %v", string(buf))
+		return
+	}
+	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return
 	}
