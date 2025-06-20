@@ -17,9 +17,10 @@ jobs:
       with:
         go-version: stable
 
-    - uses: acifani/setup-tinygo@v2
+    - name: Set up Tinygo
+      uses: acifani/setup-tinygo@v2
       with:
-        tinygo-version: '0.30.0'
+        tinygo-version: 0.38.0
 
     - name: Build WASM
       run: tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o test.wasm lmdb/test/module.go
