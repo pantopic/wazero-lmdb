@@ -26,9 +26,9 @@ jobs:
       run: cd test && tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o ../host/test.wasm module.go
 
     - name: Cover
-      run: cd host && go test . -coverprofile coverage.out
+      run: go test . -coverprofile coverage.out
 
     - name: Update coverage badge
       uses: ncruces/go-coverage-report@v0.3.0
       with:
-        coverage-file: ./host/coverage.out
+        coverage-file: coverage.out

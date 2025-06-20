@@ -26,4 +26,4 @@ jobs:
       run: cd test && tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o ../host/test.wasm module.go
 
     - name: Test
-      run: cd host && go test . -v -cover
+      run: go test . -v -cover
