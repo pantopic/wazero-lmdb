@@ -194,6 +194,18 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("%v", err)
 		return
 	}
+	if _, err := mod.ExportedFunction("update").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("updatefail").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
+	if _, err := mod.ExportedFunction("view").Call(ctx); err != nil {
+		t.Errorf("%v", err)
+		return
+	}
 	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strconv"
 	"unsafe"
 
@@ -87,6 +88,32 @@ func get2() {
 	}
 }
 
+//export update
+func update() {
+	env.Update(func(txn *lmdb.Txn) error {
+		txn.Put(dbi, []byte(`b`), []byte(`22`))
+		return nil
+	})
+}
+
+//export updatefail
+func updatefail() {
+	env.Update(func(txn *lmdb.Txn) error {
+		txn.Put(dbi, []byte(`b`), []byte(`222`))
+		return errors.New(`I can't believe you've done this.`)
+	})
+}
+
+//export view
+func view() {
+	env.View(func(txn *lmdb.Txn) {
+		v := txn.Get(dbi, []byte(`b`))
+		if string(v) != `22` {
+			panic(`wrong value`)
+		}
+	})
+}
+
 //export stress
 func stress(limit uint32) {
 	txn = env.BeginTxn(nil, 0)
@@ -120,7 +147,7 @@ func cursorfirst() {
 	if string(k) != `b` {
 		panic(`wrong key: ` + string(k))
 	}
-	if string(v) != `2` {
+	if string(v) != `22` {
 		panic(`wrong value: ` + string(v))
 	}
 }
@@ -190,3 +217,6 @@ var _ = cursornext
 var _ = cursorcurrent
 var _ = cursorclose
 var _ = cursordel
+var _ = view
+var _ = update
+var _ = updatefail

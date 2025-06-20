@@ -38,3 +38,19 @@ func (e *Env) BeginTxn(parent *Txn, flags uint32) *Txn {
 	lmdbBegin()
 	return &Txn{txnID}
 }
+
+func (e *Env) View(fn func(*Txn)) {
+	txn := e.BeginTxn(nil, Readonly)
+	fn(txn)
+	txn.Abort()
+}
+
+func (e *Env) Update(fn func(*Txn) error) (err error) {
+	txn := e.BeginTxn(nil, 0)
+	if err = fn(txn); err == nil {
+		txn.Commit()
+	} else {
+		txn.Abort()
+	}
+	return
+}
