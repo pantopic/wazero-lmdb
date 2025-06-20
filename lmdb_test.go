@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
@@ -19,10 +18,9 @@ var binary []byte
 
 func TestModule(t *testing.T) {
 	ctx := context.Background()
-	runtimeConfig := wazero.NewRuntimeConfig().
-		WithCoreFeatures(api.CoreFeaturesV2)
-	runtimeConfig = runtimeConfig.WithMemoryLimitPages(256).WithMemoryCapacityFromMax(true)
-	r := wazero.NewRuntimeWithConfig(ctx, runtimeConfig)
+	r := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().
+		WithMemoryLimitPages(256).
+		WithMemoryCapacityFromMax(true))
 	wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
 	path := "/tmp/pantopic/module-lmdb"

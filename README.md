@@ -1,13 +1,31 @@
 # Wazero LMDB
 
-A wazero host module, ABI and guest SDK providing LMDB for WASI modules.
+A [wazero](github.com/tetratelabs/wazero) host module, ABI and guest SDK providing [LMDB](github.com/PowerDNS/lmdb-go/lmdb) for WASI modules.
 
 [![Go Reference](https://godoc.org/github.com/pantopic/plugin-lmdb?status.svg)](https://godoc.org/github.com/pantopic/plugin-lmdb)
 [![License](https://img.shields.io/badge/License-Apache_2.0-dd6600.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/plugin-lmdb?4)](https://goreportcard.com/report/github.com/pantopic/plugin-lmdb)
 [![Go Coverage](https://github.com/pantopic/plugin-lmdb/wiki/coverage.svg)](https://raw.githack.com/wiki/pantopic/plugin-lmdb/coverage.html)
 
-You can import the guest SDK into your WASI reactor module to create and manage LMDB environments in WASM.
+First register the host module with the runtime
+
+```go
+import (
+	"github.com/pantopic/wazero-lmdb"
+
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+)
+func main() {
+	ctx := context.Background()
+	r := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig())
+	wasi_snapshot_preview1.MustInstantiate(ctx, r)
+	module := wazero_lmdb.New()
+	module.Register(ctx, r)
+}
+```
+
+Then you can import the guest SDK into your WASI module to create and manage LMDB environments from WASM.
 
 ```go
 package main
@@ -38,6 +56,8 @@ func get() uint64 {
 }
 ```
 
-The guest SDK has no dependencies. The [ABI](abi.go) is ~130 lines of code and the [SDK](sdk.go) is ~200 lines of code
-so it should be simple to port this guest SDK if you want to use use this Host Module in other guest languages
-(i.e. Rust). Contributions welcome.
+The [guest SDK](lmdb) has no dependencies outside the Go std lib. The [ABI](abi.go) is ~130 lines of code and
+the [SDK](sdk.go) is ~200 lines of code so it should be simple to port this guest SDK if you want to use use this
+Host Module in other guest languages (i.e. Rust). Contributions welcome.
+
+Wazero prides itself on having no dependencies and neither does [lmdb-go](github.com/PowerDNS/lmdb-go/lmdb) so your [go.sum](go.sum) remains tidy.
