@@ -5,10 +5,10 @@ build:
 	@go build -ldflags="-s -w" -o _dist/pantopic
 
 wasm:
-	@tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o test.wasm lmdb/test/module.go
+	@tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o test.wasm test/module.go
 
 wasm-prod:
-	@tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o test.prod.wasm -no-debug lmdb/test/module.go
+	@tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o test.prod.wasm -no-debug test/module.go
 
 test:
 	@go test

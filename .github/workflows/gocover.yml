@@ -23,7 +23,7 @@ jobs:
         tinygo-version: 0.38.0
 
     - name: Build WASM
-      run: tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o test.wasm lmdb/test/module.go
+      run: tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o test.wasm test/module.go
 
     - name: Cover
       run: go test . -coverprofile coverage.out
