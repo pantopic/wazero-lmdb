@@ -12,16 +12,18 @@ First register the host module with the runtime
 ```go
 import (
 	"github.com/pantopic/wazero-lmdb"
-
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
+
 func main() {
 	ctx := context.Background()
 	r := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig())
 	wasi_snapshot_preview1.MustInstantiate(ctx, r)
+
 	module := wazero_lmdb.New()
 	module.Register(ctx, r)
+	// ...
 }
 ```
 
@@ -56,8 +58,9 @@ func get() uint64 {
 }
 ```
 
-The [guest SDK](lmdb) has no dependencies outside the Go std lib. The [ABI](abi.go) is ~130 lines of code and
-the [SDK](sdk.go) is ~200 lines of code so it should be simple to port this guest SDK if you want to use use this
-Host Module in other guest languages (i.e. Rust). Contributions welcome.
+The [guest SDK](https://pkg.go.dev/github.com/pantopic/wazero-lmdb/lmdb) has no dependencies outside the Go std lib.
+The [ABI](lmdb/abi.go) is ~130 lines of code and the [SDK](lmdb/sdk.go) is ~200 lines of code so it should be simple
+to port this guest SDK if you want to use use this Host Module in other guest languages (i.e. Rust).
+Contributions welcome.
 
 Wazero prides itself on having no dependencies and neither does [lmdb-go](github.com/PowerDNS/lmdb-go/lmdb) so your [go.sum](go.sum) remains tidy.
