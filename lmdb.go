@@ -596,3 +596,13 @@ func statToBytes(s *lmdb.Stat) []byte {
 	binary.LittleEndian.PutUint64(b[40:48], uint64(s.Entries))
 	return b
 }
+func statFromBytes(b []byte) *lmdb.Stat {
+	return &lmdb.Stat{
+		PSize:         uint(binary.LittleEndian.Uint64(b[0:8])),
+		Depth:         uint(binary.LittleEndian.Uint64(b[8:16])),
+		BranchPages:   binary.LittleEndian.Uint64(b[16:24]),
+		LeafPages:     binary.LittleEndian.Uint64(b[24:32]),
+		OverflowPages: binary.LittleEndian.Uint64(b[32:40]),
+		Entries:       binary.LittleEndian.Uint64(b[40:48]),
+	}
+}

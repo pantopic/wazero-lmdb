@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -57,7 +56,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err := mod.ExportedFunction("stat").Call(ctx)
 	buf, _ := mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":0`) {
+	stat := statFromBytes(buf)
+	if stat.Entries != 0 {
 		t.Errorf("Wrong number of entries: %v", string(buf))
 		return
 	}
@@ -71,8 +71,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":0`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 0 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("set").Call(ctx); err != nil {
@@ -85,8 +85,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("stat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":1`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 1 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
@@ -95,8 +95,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":1`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 1 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("get").Call(ctx); err != nil {
@@ -113,8 +113,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("stat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":1`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 1 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
@@ -123,8 +123,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":1`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 1 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("set2").Call(ctx); err != nil {
@@ -141,8 +141,9 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("stat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":1`) {
-		t.Errorf("Wrong number of entries: %s", string(buf))
+	if statFromBytes(buf).Entries != 1 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
+		return
 	}
 	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
 		t.Errorf("%v", err)
@@ -150,8 +151,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":2`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 2 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("get2").Call(ctx); err != nil {
@@ -172,8 +173,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":1`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 1 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
@@ -186,8 +187,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":1`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 1 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
@@ -240,8 +241,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":2`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 2 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
@@ -278,8 +279,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":1`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 1 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
@@ -326,8 +327,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), fmt.Sprintf(`"Entries":%d`, n)) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != n {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("dbdrop").Call(ctx); err != nil {
@@ -340,8 +341,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("stat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":0`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 0 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
@@ -354,8 +355,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":0`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 0 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("set").Call(ctx); err != nil {
@@ -372,8 +373,8 @@ func TestModule(t *testing.T) {
 	}
 	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
 	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if !strings.Contains(string(buf), `"Entries":1`) {
-		t.Errorf("Wrong number of entries: %v", string(buf))
+	if statFromBytes(buf).Entries != 1 {
+		t.Errorf("Wrong number of entries: %v", stat.Entries)
 		return
 	}
 	if _, err := mod.ExportedFunction("close").Call(ctx); err != nil {
