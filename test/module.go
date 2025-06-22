@@ -73,12 +73,18 @@ func dbstat() uint64 {
 
 //export dbdrop
 func dbdrop() {
-	txn.Drop(dbi)
+	err := txn.Drop(dbi)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export set
 func set() {
-	txn.Put(dbi, []byte(`a`), []byte(`1`), 0)
+	err := txn.Put(dbi, []byte(`a`), []byte(`1`), 0)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export get
@@ -105,17 +111,26 @@ func getmissing() {
 
 //export del
 func del() {
-	txn.Del(dbi, []byte(`a`), nil)
+	err := txn.Del(dbi, []byte(`a`), nil)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export commit
 func commit() {
-	txn.Commit()
+	err := txn.Commit()
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export set2
 func set2() {
-	txn.Put(dbi, []byte(`b`), []byte(`2`), 0)
+	err := txn.Put(dbi, []byte(`b`), []byte(`2`), 0)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export get2
@@ -144,14 +159,14 @@ func updatefail() {
 	if err := env.Update(func(txn *lmdb.Txn) error {
 		txn.Put(dbi, []byte(`b`), []byte(`222`), 0)
 		return errors.New(`I can't believe you've done this.`)
-	}); err != nil {
-		// panic(err)
+	}); err == nil {
+		panic(`Error missing`)
 	}
 }
 
 //export view
 func view() {
-	env.View(func(txn *lmdb.Txn) (err error) {
+	err := env.View(func(txn *lmdb.Txn) (err error) {
 		v, err := txn.Get(dbi, []byte(`b`))
 		if err != nil {
 			return
@@ -161,6 +176,9 @@ func view() {
 		}
 		return
 	})
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export stress
@@ -178,7 +196,10 @@ func stress(limit uint32) {
 			panic(err)
 		}
 	}
-	txn.Commit()
+	err := txn.Commit()
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export abort
@@ -188,7 +209,10 @@ func abort() {
 
 //export close
 func close() {
-	env.Close()
+	err := env.Close()
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export cursoropen
@@ -203,7 +227,10 @@ func cursoropen() {
 
 //export cursorfirst
 func cursorfirst() {
-	k, v := cur.Get(nil, nil, lmdb.First)
+	k, v, err := cur.Get(nil, nil, lmdb.First)
+	if err != nil {
+		panic(err)
+	}
 	if string(k) != `b` {
 		panic(`wrong key: ` + string(k))
 	}
@@ -214,12 +241,18 @@ func cursorfirst() {
 
 //export cursorput
 func cursorput() {
-	cur.Put([]byte(`c`), []byte(`3`), 0)
+	err := cur.Put([]byte(`c`), []byte(`3`), 0)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export cursorcurrent
 func cursorcurrent() {
-	k, v := cur.Get(nil, nil, lmdb.GetCurrent)
+	k, v, err := cur.Get(nil, nil, lmdb.GetCurrent)
+	if err != nil {
+		panic(err)
+	}
 	if string(k) != `c` {
 		panic(`wrong key: ` + string(k))
 	}
@@ -230,7 +263,10 @@ func cursorcurrent() {
 
 //export cursornext
 func cursornext() {
-	k, v := cur.Get(nil, nil, lmdb.Next)
+	k, v, err := cur.Get(nil, nil, lmdb.Next)
+	if err != nil {
+		panic(err)
+	}
 	if string(k) != `c` {
 		panic(`wrong key: ` + string(k))
 	}
@@ -241,7 +277,10 @@ func cursornext() {
 
 //export cursordel
 func cursordel() {
-	cur.Del(lmdb.Current)
+	err := cur.Del(lmdb.Current)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export cursorclose

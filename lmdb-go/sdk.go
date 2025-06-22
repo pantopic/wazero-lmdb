@@ -72,9 +72,13 @@ func (e *Env) Stat() (s *Stat, err error) {
 	return
 }
 
-func (e *Env) Close() {
+func (e *Env) Close() (err error) {
 	envID = e.id
 	lmdbEnvClose()
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+	}
+	return
 }
 
 func (e *Env) Delete() {
@@ -237,27 +241,38 @@ type Cursor struct {
 	id uint32
 }
 
-func (c *Cursor) Get(key, val []byte, flags uint32) ([]byte, []byte) {
+func (c *Cursor) Get(key, val []byte, flags uint32) ([]byte, []byte, error) {
 	curID = c.id
 	expFlg = flags
 	setKey(key)
 	setVal(val)
 	lmdbCursorGet()
-	return getKey(), getVal()
+	if errCode > 0 {
+		return nil, nil, opError{Errno(errCode), getVal()}
+	}
+	return getKey(), getVal(), nil
 }
 
-func (c *Cursor) Put(key, val []byte, flags uint32) {
+func (c *Cursor) Put(key, val []byte, flags uint32) (err error) {
 	curID = c.id
 	expFlg = flags
 	setKey(key)
 	setVal(val)
 	lmdbCursorPut()
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+	}
+	return
 }
 
-func (c *Cursor) Del(flags uint32) {
+func (c *Cursor) Del(flags uint32) (err error) {
 	curID = c.id
 	expFlg = flags
 	lmdbCursorDel()
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+	}
+	return
 }
 
 func (c *Cursor) Close() {
