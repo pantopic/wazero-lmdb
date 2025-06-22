@@ -19,10 +19,8 @@ const (
 )
 
 var (
-	DefaultCtxKeyMeta     = `module_lmdb_meta`
-	DefaultCtxKeyTenantID = `tenant_id`
-	DefaultCtxKeyLocalDir = `tenant_local_dir`
-	DefaultCtxKeyBlockDir = `tenant_block_dir`
+	DefaultCtxKeyMeta = `module_lmdb_meta`
+	DefaultCtxKeyPath = `tenant_lmdb_path`
 
 	optEnv    uint = lmdb.NoMemInit | lmdb.NoReadahead | lmdb.NoSync | lmdb.NoMetaSync | lmdb.NoLock | lmdb.NoSubdir
 	openFlags uint = lmdb.NoReadahead | lmdb.Create
@@ -66,20 +64,16 @@ func newTenant() *tenant {
 type module struct {
 	sync.RWMutex
 
-	ctxKeyMeta     string
-	ctxKeyTenantID string
-	ctxKeyLocalDir string
-	ctxKeyBlockDir string
-	tenants        map[uint64]*tenant
+	ctxKeyMeta string
+	ctxKeyPath string
+	tenants    map[string]*tenant
 }
 
 func New(opts ...Option) *module {
 	p := &module{
-		ctxKeyMeta:     DefaultCtxKeyMeta,
-		ctxKeyTenantID: DefaultCtxKeyTenantID,
-		ctxKeyLocalDir: DefaultCtxKeyLocalDir,
-		ctxKeyBlockDir: DefaultCtxKeyBlockDir,
-		tenants:        map[uint64]*tenant{},
+		ctxKeyMeta: DefaultCtxKeyMeta,
+		ctxKeyPath: DefaultCtxKeyPath,
+		tenants:    map[string]*tenant{},
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -88,8 +82,7 @@ func New(opts ...Option) *module {
 }
 
 func (p *module) InitContext(ctx context.Context, m api.Module) context.Context {
-	init := m.ExportedFunction(`lmdb`)
-	stack, err := init.Call(ctx)
+	stack, err := m.ExportedFunction(`lmdb`).Call(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -124,16 +117,16 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 	}
 	for name, fn := range map[string]any{
 		"EnvOpen": func(ctx context.Context, name string, flags uint32) uint32 {
-			tenantID := get[uint64](ctx, p.ctxKeyTenantID)
+			path := get[string](ctx, p.ctxKeyPath)
 			p.RLock()
-			tenant, ok := p.tenants[tenantID]
+			tenant, ok := p.tenants[path]
 			p.RUnlock()
 			if !ok {
 				p.Lock()
-				tenant, ok = p.tenants[tenantID]
+				tenant, ok = p.tenants[path]
 				if !ok {
 					tenant = newTenant()
-					p.tenants[tenantID] = tenant
+					p.tenants[path] = tenant
 				}
 				p.Unlock()
 			}
@@ -144,12 +137,6 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 				if ok {
 					return envID
 				}
-			}
-			var path string
-			if uint(flags)&Block > 0 {
-				path = get[string](ctx, p.ctxKeyBlockDir)
-			} else {
-				path = get[string](ctx, p.ctxKeyLocalDir)
 			}
 			if err := os.MkdirAll(path, 0755); err != nil {
 				panic(err)
@@ -180,10 +167,10 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 			return stat
 		},
 		"EnvClose": func(ctx context.Context, envID uint32) {
-			tenantID := get[uint64](ctx, p.ctxKeyTenantID)
+			path := get[string](ctx, p.ctxKeyPath)
 			p.Lock()
 			defer p.Unlock()
-			tenant, ok := p.tenants[tenantID]
+			tenant, ok := p.tenants[path]
 			if !ok {
 				return
 			}
@@ -203,14 +190,14 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 				}
 			}
 			if len(tenant.envs) == 0 {
-				delete(p.tenants, tenantID)
+				delete(p.tenants, path)
 			}
 		},
 		"EnvDelete": func(ctx context.Context, envID uint32) {
-			tenantID := get[uint64](ctx, p.ctxKeyTenantID)
+			path := get[string](ctx, p.ctxKeyPath)
 			p.Lock()
 			defer p.Unlock()
-			tenant, ok := p.tenants[tenantID]
+			tenant, ok := p.tenants[path]
 			if !ok {
 				return
 			}
@@ -427,14 +414,14 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 }
 
 func (p *module) TenantClose(ctx context.Context) {
-	tenantID := get[uint64](ctx, p.ctxKeyTenantID)
+	path := get[string](ctx, p.ctxKeyPath)
 	p.Lock()
 	defer p.Unlock()
-	tenant, ok := p.tenants[tenantID]
+	tenant, ok := p.tenants[path]
 	if !ok {
 		return
 	}
-	delete(p.tenants, tenantID)
+	delete(p.tenants, path)
 	envs := tenant.envs
 	for _, env := range envs {
 		if err := env.Close(); err != nil {
@@ -444,19 +431,17 @@ func (p *module) TenantClose(ctx context.Context) {
 }
 
 func (p *module) TenantDelete(ctx context.Context) {
-	if err := os.RemoveAll(get[string](ctx, p.ctxKeyLocalDir)); err != nil {
-		panic(err)
-	}
-	if err := os.RemoveAll(get[string](ctx, p.ctxKeyBlockDir)); err != nil {
+	path := get[string](ctx, p.ctxKeyPath)
+	if err := os.RemoveAll(path); err != nil {
 		panic(err)
 	}
 }
 
 func (p *module) TenantSync(ctx context.Context) {
-	tenantID := get[uint64](ctx, p.ctxKeyTenantID)
+	path := get[string](ctx, p.ctxKeyPath)
 	p.RLock()
 	defer p.RUnlock()
-	tenant, ok := p.tenants[tenantID]
+	tenant, ok := p.tenants[path]
 	if !ok {
 		return
 	}
@@ -495,16 +480,16 @@ func (p *module) Stop() {
 			}
 		}
 	}
-	p.tenants = map[uint64]*tenant{}
+	p.tenants = map[string]*tenant{}
 }
 
 func (p *module) env(ctx context.Context, m api.Module, meta *meta) *lmdb.Env {
 	p.RLock()
 	defer p.RUnlock()
-	tenantID := get[uint64](ctx, p.ctxKeyTenantID)
-	tenant, ok := p.tenants[tenantID]
+	path := get[string](ctx, p.ctxKeyPath)
+	tenant, ok := p.tenants[path]
 	if !ok {
-		log.Panicf("Tenant not found: %d", tenantID)
+		log.Panicf("Tenant not found: %s", path)
 	}
 	envID := envID(m, meta)
 	env, ok := tenant.envs[envID]

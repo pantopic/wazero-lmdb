@@ -26,10 +26,8 @@ func TestModule(t *testing.T) {
 	path := "/tmp/pantopic/module-lmdb"
 	os.RemoveAll(path)
 	module := New(
-		WithCtxKeyMeta(`meta`),
-		WithCtxKeyTenantID(`tenant_id`),
-		WithCtxKeyLocalDir(`local_dir`),
-		WithCtxKeyBlockDir(`block_dir`),
+		WithCtxKeyMeta(`test_meta_key`),
+		WithCtxKeyPath(`test_path_key`),
 	)
 	module.Register(ctx, r)
 
@@ -52,9 +50,7 @@ func TestModule(t *testing.T) {
 	}
 
 	tenantID := 1
-	ctx = context.WithValue(ctx, module.ctxKeyTenantID, uint64(tenantID))
-	ctx = context.WithValue(ctx, module.ctxKeyLocalDir, fmt.Sprintf(`%s/local/%016x`, path, tenantID))
-	ctx = context.WithValue(ctx, module.ctxKeyBlockDir, fmt.Sprintf(`%s/block/%016x`, path, tenantID))
+	ctx = context.WithValue(ctx, module.ctxKeyPath, fmt.Sprintf(`%s/local/%016x`, path, tenantID))
 	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
 		t.Errorf("%v", err)
 		return

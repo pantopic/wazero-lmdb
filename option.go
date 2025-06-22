@@ -8,20 +8,8 @@ func WithCtxKeyMeta(key string) Option {
 	}
 }
 
-func WithCtxKeyTenantID(key string) Option {
+func WithCtxKeyPath(key string) Option {
 	return func(p *module) {
-		p.ctxKeyTenantID = key
-	}
-}
-
-func WithCtxKeyLocalDir(key string) Option {
-	return func(p *module) {
-		p.ctxKeyLocalDir = key
-	}
-}
-
-func WithCtxKeyBlockDir(key string) Option {
-	return func(p *module) {
-		p.ctxKeyLocalDir = key
+		p.ctxKeyPath = key
 	}
 }
