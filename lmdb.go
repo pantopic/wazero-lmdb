@@ -2,7 +2,7 @@ package wazero_lmdb
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/binary"
 	"log"
 	"os"
 	"sync"
@@ -13,19 +13,17 @@ import (
 	"github.com/tetratelabs/wazero/api"
 )
 
-const (
-	// Flag for EnvOpen indicating selection of block storage directory rather than local storage.
-	Block uint = 1 << 31
-)
-
 var (
 	DefaultCtxKeyMeta = `module_lmdb_meta`
 	DefaultCtxKeyPath = `tenant_lmdb_path`
 
-	optEnv    uint = lmdb.NoMemInit | lmdb.NoReadahead | lmdb.NoSync | lmdb.NoMetaSync | lmdb.NoLock | lmdb.NoSubdir
-	openFlags uint = lmdb.NoReadahead | lmdb.Create
-	dbFlags   uint = lmdb.Create | lmdb.DupSort
-	txnFlags  uint = lmdb.Readonly
+	optEnv      uint = lmdb.NoMemInit | lmdb.NoReadahead | lmdb.NoSync | lmdb.NoMetaSync | lmdb.NoLock | lmdb.NoSubdir
+	openFlags   uint = lmdb.NoReadahead | lmdb.Create
+	dbFlags     uint = lmdb.Create | lmdb.DupSort
+	txnFlags    uint = lmdb.Readonly
+	txnPutFlags uint = lmdb.NoDupData | lmdb.NoOverwrite | lmdb.Append | lmdb.AppendDup
+	curPutFlags uint = lmdb.NoDupData | lmdb.NoOverwrite | lmdb.Append | lmdb.AppendDup | lmdb.Current
+	curGetFlags uint = 1<<18 - 1
 )
 
 type meta struct {
@@ -38,6 +36,7 @@ type meta struct {
 	ptrDbi    uint32
 	ptrCur    uint32
 	ptrFlg    uint32
+	ptrErr    uint32
 	ptrKey    uint32
 	ptrVal    uint32
 	txn       map[uint32]*lmdb.Txn
@@ -100,8 +99,9 @@ func (p *module) InitContext(ctx context.Context, m api.Module) context.Context 
 	meta.ptrDbi, _ = m.Memory().ReadUint32Le(ptr + 24)
 	meta.ptrCur, _ = m.Memory().ReadUint32Le(ptr + 28)
 	meta.ptrFlg, _ = m.Memory().ReadUint32Le(ptr + 32)
-	meta.ptrKey, _ = m.Memory().ReadUint32Le(ptr + 36)
-	meta.ptrVal, _ = m.Memory().ReadUint32Le(ptr + 40)
+	meta.ptrErr, _ = m.Memory().ReadUint32Le(ptr + 36)
+	meta.ptrKey, _ = m.Memory().ReadUint32Le(ptr + 40)
+	meta.ptrVal, _ = m.Memory().ReadUint32Le(ptr + 44)
 	return context.WithValue(ctx, p.ctxKeyMeta, meta)
 }
 
@@ -253,8 +253,8 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 				panic(err)
 			}
 		},
-		"Put": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) {
-			err := txn.Put(dbi, key, val, 0)
+		"Put": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte, flags uint32) {
+			err := txn.Put(dbi, key, val, uint(flags)&txnPutFlags)
 			if err != nil {
 				panic(err)
 			}
@@ -282,7 +282,7 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 			return cur
 		},
 		"CursorGet": func(cur *lmdb.Cursor, key, val []byte, flags uint32) ([]byte, []byte) {
-			k, v, err := cur.Get(key, val, uint(flags))
+			k, v, err := cur.Get(key, val, uint(flags)&curGetFlags)
 			if err != nil && !lmdb.IsNotFound(err) {
 				panic(err)
 			}
@@ -299,7 +299,7 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 			}
 		},
 		"CursorPut": func(cur *lmdb.Cursor, key, val []byte, flags uint32) {
-			err := cur.Put(key, val, uint(flags))
+			err := cur.Put(key, val, uint(flags)&curPutFlags)
 			if err != nil && !lmdb.IsNotFound(err) {
 				panic(err)
 			}
@@ -324,8 +324,7 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
 				stat := fn(p.env(ctx, m, meta))
-				data, _ := json.Marshal(stat)
-				val := append(valBuf(m, meta), data...)
+				val := append(valBuf(m, meta), statToBytes(stat)...)
 				writeUint32(m, meta.ptrValLen, uint32(len(val)))
 			})
 		case func(*lmdb.Txn, string, uint32) lmdb.DBI:
@@ -343,14 +342,18 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
 				stat := fn(txn(m, meta), dbi(m, meta))
-				data, _ := json.Marshal(stat)
-				val := append(valBuf(m, meta), data...)
+				val := append(valBuf(m, meta), statToBytes(stat)...)
 				writeUint32(m, meta.ptrValLen, uint32(len(val)))
 			})
 		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
 				fn(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta))
+			})
+		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte, uint32):
+			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
+				meta := get[*meta](ctx, p.ctxKeyMeta)
+				fn(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta), flags(m, meta))
 			})
 		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte) []byte:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
@@ -581,4 +584,15 @@ func beginTxn(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (t *lmdb.Txn) {
 	}
 	t.RawRead = true
 	return
+}
+
+func statToBytes(s *lmdb.Stat) []byte {
+	b := make([]byte, 48)
+	binary.LittleEndian.PutUint64(b[0:8], uint64(s.PSize))
+	binary.LittleEndian.PutUint64(b[8:16], uint64(s.Depth))
+	binary.LittleEndian.PutUint64(b[16:24], uint64(s.BranchPages))
+	binary.LittleEndian.PutUint64(b[24:32], uint64(s.LeafPages))
+	binary.LittleEndian.PutUint64(b[32:40], uint64(s.OverflowPages))
+	binary.LittleEndian.PutUint64(b[40:48], uint64(s.Entries))
+	return b
 }

@@ -5,24 +5,23 @@ import (
 	"strconv"
 	"unsafe"
 
-	"github.com/pantopic/wazero-lmdb/lmdb"
+	"github.com/pantopic/wazero-lmdb/lmdb-go"
 )
 
 func main() {}
 
 var env *lmdb.Env
 var txn *lmdb.Txn
-var dbi uint32
+var dbi lmdb.DBI
 var cur *lmdb.Cursor
+var err error
 
 //export open
 func open() {
-	env = lmdb.Open("test", lmdb.Create)
-}
-
-//export openblock
-func openblock() {
-	env = lmdb.Open("test-2", lmdb.Create|lmdb.Block)
+	env, err = lmdb.Open("test", lmdb.Create)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export delete
@@ -32,8 +31,11 @@ func delete() {
 
 //export stat
 func stat() uint64 {
-	data := env.Stat()
-	return sliceToPtr(data)
+	s, err := env.Stat()
+	if err != nil {
+		panic(err)
+	}
+	return sliceToPtr(s.ToBytes())
 }
 
 //export begin
@@ -48,23 +50,26 @@ func beginread() {
 
 //export db
 func db() {
-	dbi = txn.DbOpen("test", lmdb.Create)
+	dbi = txn.OpenDBI("test", lmdb.Create)
 }
 
 //export dbstat
 func dbstat() uint64 {
-	data := txn.Stat(dbi)
-	return sliceToPtr(data)
+	s, err := txn.Stat(dbi)
+	if err != nil {
+		panic(err)
+	}
+	return sliceToPtr(s.ToBytes())
 }
 
 //export dbdrop
 func dbdrop() {
-	txn.DbDrop(dbi)
+	txn.Drop(dbi)
 }
 
 //export set
 func set() {
-	txn.Put(dbi, []byte(`a`), []byte(`1`))
+	txn.Put(dbi, []byte(`a`), []byte(`1`), 0)
 }
 
 //export get
@@ -87,7 +92,7 @@ func commit() {
 
 //export set2
 func set2() {
-	txn.Put(dbi, []byte(`b`), []byte(`2`))
+	txn.Put(dbi, []byte(`b`), []byte(`2`), 0)
 }
 
 //export get2
@@ -101,7 +106,7 @@ func get2() {
 //export update
 func update() {
 	env.Update(func(txn *lmdb.Txn) error {
-		txn.Put(dbi, []byte(`b`), []byte(`22`))
+		txn.Put(dbi, []byte(`b`), []byte(`22`), 0)
 		return nil
 	})
 }
@@ -109,7 +114,7 @@ func update() {
 //export updatefail
 func updatefail() {
 	env.Update(func(txn *lmdb.Txn) error {
-		txn.Put(dbi, []byte(`b`), []byte(`222`))
+		txn.Put(dbi, []byte(`b`), []byte(`222`), 0)
 		return errors.New(`I can't believe you've done this.`)
 	})
 }
@@ -127,10 +132,10 @@ func view() {
 //export stress
 func stress(limit uint32) {
 	txn = env.BeginTxn(nil, 0)
-	dbi = txn.DbOpen("test", lmdb.Create)
+	dbi = txn.OpenDBI("test", lmdb.Create)
 	n := int64(limit)
 	for i := range n {
-		txn.Put(dbi, []byte(strconv.FormatInt(i+1e15, 16)), []byte(strconv.FormatInt(n-i+1e15, 16)))
+		txn.Put(dbi, []byte(strconv.FormatInt(i+1e15, 16)), []byte(strconv.FormatInt(n-i+1e15, 16)), 0)
 	}
 	txn.Commit()
 }
@@ -147,8 +152,8 @@ func close() {
 
 //export cursoropen
 func cursoropen() {
-	dbi = txn.DbOpen("test", lmdb.Create)
-	cur = txn.CursorOpen(dbi)
+	dbi = txn.OpenDBI("test", lmdb.Create)
+	cur = txn.OpenCursor(dbi)
 }
 
 //export cursorfirst
@@ -230,5 +235,4 @@ var _ = cursordel
 var _ = view
 var _ = update
 var _ = updatefail
-var _ = openblock
 var _ = delete

@@ -5,18 +5,19 @@ import (
 )
 
 var (
-	maxKey uint32 = 511
-	maxVal uint32 = 1.5 * 1024 * 1024
-	keyLen uint32
-	valLen uint32
-	envID  uint32
-	txnID  uint32
-	expDbi uint32
-	curID  uint32
-	expFlg uint32
-	key    = make([]byte, int(maxKey))
-	val    = make([]byte, int(maxVal))
-	meta   = make([]uint32, 11)
+	maxKey  uint32 = 511
+	maxVal  uint32 = 1.5 * 1024 * 1024
+	keyLen  uint32
+	valLen  uint32
+	envID   uint32
+	txnID   uint32
+	expDbi  DBI
+	curID   uint32
+	expFlg  uint32
+	errCode uint32
+	key     = make([]byte, int(maxKey))
+	val     = make([]byte, int(maxVal))
+	meta    = make([]uint32, 12)
 )
 
 //export lmdb
@@ -30,8 +31,9 @@ func lmdb() (res uint32) {
 	meta[6] = uint32(uintptr(unsafe.Pointer(&expDbi)))
 	meta[7] = uint32(uintptr(unsafe.Pointer(&curID)))
 	meta[8] = uint32(uintptr(unsafe.Pointer(&expFlg)))
-	meta[9] = uint32(uintptr(unsafe.Pointer(&key[0])))
-	meta[10] = uint32(uintptr(unsafe.Pointer(&val[0])))
+	meta[9] = uint32(uintptr(unsafe.Pointer(&errCode)))
+	meta[10] = uint32(uintptr(unsafe.Pointer(&key[0])))
+	meta[11] = uint32(uintptr(unsafe.Pointer(&val[0])))
 	return uint32(uintptr(unsafe.Pointer(&meta[0])))
 }
 

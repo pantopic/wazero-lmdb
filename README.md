@@ -66,3 +66,19 @@ Contributions welcome.
 
 Wazero prides itself on having no dependencies and neither does [lmdb-go](https://github.com/PowerDNS/lmdb-go/lmdb) so your
 [go.sum](go.sum) should remain tidy.
+
+## Roadmap
+
+This project is in alpha. Breaking API changes should be expected until Beta.
+
+- `v0.0.x` - Alpha
+  - [ ] Stabilize API
+- `v0.x.x` - Beta
+  - [ ] Finalize API
+  - [ ] Test in production
+- `v1.x.x` - General Availability
+  - [ ] Proven long term stability in production
+
+## License
+
+Licensed under Apache 2.0
