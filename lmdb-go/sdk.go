@@ -43,15 +43,6 @@ const (
 
 type DBI uint32
 
-type lmdbError struct {
-	code uint32
-	msg  []byte
-}
-
-func (err lmdbError) Error() string {
-	return string(err.msg)
-}
-
 // Env represents an LMDB environment (database file)
 // See https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb#Env
 type Env struct {
@@ -63,10 +54,10 @@ func Open(name string, flags uint32) (env *Env, err error) {
 	expFlg = flags
 	lmdbEnvOpen()
 	if errCode > 0 {
-		err = lmdbError{errCode, getVal()}
-	} else {
-		env = &Env{envID}
+		err = opError{Errno(errCode), getVal()}
+		return
 	}
+	env = &Env{envID}
 	return
 }
 
@@ -74,10 +65,10 @@ func (e *Env) Stat() (s *Stat, err error) {
 	envID = e.id
 	lmdbEnvStat()
 	if errCode > 0 {
-		err = lmdbError{errCode, getVal()}
-	} else {
-		s = stat.from(getVal())
+		err = opError{Errno(errCode), getVal()}
+		return
 	}
+	s = stat.from(getVal())
 	return
 }
 
@@ -91,7 +82,7 @@ func (e *Env) Delete() {
 	lmdbEnvDelete()
 }
 
-func (e *Env) BeginTxn(parent *Txn, flags uint32) *Txn {
+func (e *Env) BeginTxn(parent *Txn, flags uint32) (txn *Txn, err error) {
 	envID = e.id
 	if parent != nil {
 		txnID = parent.id
@@ -100,19 +91,31 @@ func (e *Env) BeginTxn(parent *Txn, flags uint32) *Txn {
 	}
 	expFlg = flags
 	lmdbBegin()
-	return &Txn{txnID}
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+		return
+	}
+	txn = &Txn{txnID}
+	return
 }
 
-func (e *Env) View(fn func(*Txn)) {
-	txn := e.BeginTxn(nil, Readonly)
-	fn(txn)
+func (e *Env) View(fn func(*Txn) error) (err error) {
+	txn, err := e.BeginTxn(nil, Readonly)
+	if err != nil {
+		return
+	}
+	err = fn(txn)
 	txn.Abort()
+	return
 }
 
 func (e *Env) Update(fn func(*Txn) error) (err error) {
-	txn := e.BeginTxn(nil, 0)
+	txn, err := e.BeginTxn(nil, 0)
+	if err != nil {
+		return
+	}
 	if err = fn(txn); err == nil {
-		txn.Commit()
+		err = txn.Commit()
 	} else {
 		txn.Abort()
 	}
@@ -125,18 +128,31 @@ type Txn struct {
 	id uint32
 }
 
-func (t *Txn) OpenDBI(name string, flags uint32) DBI {
+func (t *Txn) CreateDBI(name string, flags uint32) (dbi DBI, err error) {
+	return t.OpenDBI(name, flags|Create)
+}
+
+func (t *Txn) OpenDBI(name string, flags uint32) (dbi DBI, err error) {
 	txnID = t.id
 	expFlg = flags
 	setKey([]byte(name))
 	lmdbDbOpen()
-	return expDbi
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+		return
+	}
+	dbi = expDbi
+	return
 }
 
-func (t *Txn) Drop(dbi DBI) {
+func (t *Txn) Drop(dbi DBI) (err error) {
 	txnID = t.id
 	expDbi = dbi
 	lmdbDbDrop()
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+	}
+	return
 }
 
 func (t *Txn) Stat(dbi DBI) (s *Stat, err error) {
@@ -144,48 +160,70 @@ func (t *Txn) Stat(dbi DBI) (s *Stat, err error) {
 	expDbi = dbi
 	lmdbDbStat()
 	if errCode > 0 {
-		err = lmdbError{errCode, getVal()}
-	} else {
-		s = stat.from(getVal())
+		err = opError{Errno(errCode), getVal()}
+		return
 	}
+	s = stat.from(getVal())
 	return
 }
 
-func (t *Txn) Put(dbi DBI, key, val []byte, flags uint32) {
+func (t *Txn) Put(dbi DBI, key, val []byte, flags uint32) (err error) {
 	txnID = t.id
 	expDbi = dbi
 	expFlg = flags
 	setKey(key)
 	setVal(val)
 	lmdbPut()
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+	}
+	return
 }
 
-func (t *Txn) Get(dbi DBI, key []byte) []byte {
+func (t *Txn) Get(dbi DBI, key []byte) (val []byte, err error) {
 	txnID = t.id
 	expDbi = dbi
 	setKey(key)
 	lmdbGet()
-	return getVal()
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+		return
+	}
+	val = getVal()
+	return
 }
 
-func (t *Txn) Del(dbi DBI, key, val []byte) {
+func (t *Txn) Del(dbi DBI, key, val []byte) (err error) {
 	txnID = t.id
 	expDbi = dbi
 	setKey(key)
 	setVal(val)
 	lmdbDel()
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+	}
+	return
 }
 
-func (t *Txn) OpenCursor(dbi DBI) *Cursor {
+func (t *Txn) OpenCursor(dbi DBI) (cur *Cursor, err error) {
 	txnID = t.id
 	expDbi = dbi
 	lmdbCursorOpen()
-	return &Cursor{curID}
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+		return
+	}
+	cur = &Cursor{curID}
+	return
 }
 
-func (t *Txn) Commit() {
+func (t *Txn) Commit() (err error) {
 	txnID = t.id
 	lmdbCommit()
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+	}
+	return
 }
 
 func (t *Txn) Abort() {

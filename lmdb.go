@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"log"
 	"os"
+	"runtime"
 	"sync"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
@@ -105,8 +106,8 @@ func (p *module) InitContext(ctx context.Context, m api.Module) context.Context 
 	return context.WithValue(ctx, p.ctxKeyMeta, meta)
 }
 
-func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
-	builder := runtime.NewHostModuleBuilder("lmdb")
+func (p *module) Register(ctx context.Context, r wazero.Runtime) {
+	builder := r.NewHostModuleBuilder("lmdb")
 	defer func() {
 		if _, err := builder.Instantiate(ctx); err != nil {
 			panic(err)
@@ -116,7 +117,7 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 		builder = builder.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(fn), nil, nil).Export(name)
 	}
 	for name, fn := range map[string]any{
-		"EnvOpen": func(ctx context.Context, name string, flags uint32) uint32 {
+		"EnvOpen": func(ctx context.Context, name string, flags uint32) (envID uint32, err error) {
 			path := get[string](ctx, p.ctxKeyPath)
 			p.RLock()
 			tenant, ok := p.tenants[path]
@@ -135,15 +136,16 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 				envID, ok := tenant.envNames[name]
 				tenant.RUnlock()
 				if ok {
-					return envID
+					return envID, nil
 				}
 			}
-			if err := os.MkdirAll(path, 0755); err != nil {
-				panic(err)
+			err = os.MkdirAll(path, 0755)
+			if err != nil {
+				return
 			}
 			env, err := lmdb.NewEnv()
 			if err != nil {
-				panic(err)
+				return
 			}
 			env.SetMaxDBs(1 << 16)
 			env.SetMapSize(int64(1 << 37))
@@ -157,16 +159,12 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 			tenant.envID++
 			tenant.envs[tenant.envID] = env
 			tenant.envNames[name] = tenant.envID
-			return tenant.envID
+			return tenant.envID, nil
 		},
-		"EnvStat": func(env *lmdb.Env) *lmdb.Stat {
-			stat, err := env.Stat()
-			if err != nil {
-				panic(err)
-			}
-			return stat
+		"EnvStat": func(env *lmdb.Env) (stat *lmdb.Stat, err error) {
+			return env.Stat()
 		},
-		"EnvClose": func(ctx context.Context, envID uint32) {
+		"EnvClose": func(ctx context.Context, envID uint32) (err error) {
 			path := get[string](ctx, p.ctxKeyPath)
 			p.Lock()
 			defer p.Unlock()
@@ -180,8 +178,8 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 			if !ok {
 				return
 			}
-			if err := env.Close(); err != nil {
-				panic(err.Error())
+			if err = env.Close(); err != nil {
+				return
 			}
 			delete(tenant.envs, envID)
 			for name, id := range tenant.envNames {
@@ -192,8 +190,9 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 			if len(tenant.envs) == 0 {
 				delete(p.tenants, path)
 			}
+			return
 		},
-		"EnvDelete": func(ctx context.Context, envID uint32) {
+		"EnvDelete": func(ctx context.Context, envID uint32) (err error) {
 			path := get[string](ctx, p.ctxKeyPath)
 			p.Lock()
 			defer p.Unlock()
@@ -207,15 +206,15 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 			if !ok {
 				return
 			}
-			path, err := env.Path()
+			path, err = env.Path()
 			if err != nil {
-				panic(err)
+				return
 			}
-			if err := env.Close(); err != nil {
-				panic(err)
+			if err = env.Close(); err != nil {
+				return
 			}
-			if err := os.Remove(path); err != nil {
-				panic(err)
+			if err = os.Remove(path); err != nil {
+				return
 			}
 			delete(tenant.envs, envID)
 			for name, id := range tenant.envNames {
@@ -223,175 +222,181 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 					delete(tenant.envNames, name)
 				}
 			}
-		},
-		"Begin": func(env *lmdb.Env, parent *lmdb.Txn, flags uint32) *lmdb.Txn {
-			return beginTxn(env, parent, flags)
-		},
-		"Commit": func(txn *lmdb.Txn) {
-			txn.Commit()
-		},
-		"Abort": func(txn *lmdb.Txn) {
-			txn.Abort()
-		},
-		"DbOpen": func(txn *lmdb.Txn, name string, flags uint32) (dbi lmdb.DBI) {
-			dbi, err := txn.OpenDBI(name, uint(flags)&dbFlags)
-			if err != nil && !lmdb.IsNotFound(err) {
-				panic(err)
-			}
 			return
 		},
-		"DbStat": func(txn *lmdb.Txn, dbi lmdb.DBI) *lmdb.Stat {
-			stat, err := txn.Stat(dbi)
-			if err != nil {
-				panic(err)
+		"Begin": func(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (txn *lmdb.Txn, err error) {
+			if flags&lmdb.Readonly == 0 {
+				runtime.LockOSThread()
 			}
-			return stat
+			return beginTxn(env, parent, flags)
 		},
-		"DbDrop": func(txn *lmdb.Txn, dbi lmdb.DBI) {
-			err := txn.Drop(dbi, true)
-			if err != nil && !lmdb.IsNotFound(err) {
-				panic(err)
-			}
+		"Commit": func(txn *lmdb.Txn) error {
+			defer runtime.UnlockOSThread()
+			return txn.Commit()
 		},
-		"Put": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte, flags uint32) {
-			err := txn.Put(dbi, key, val, uint(flags)&txnPutFlags)
-			if err != nil {
-				panic(err)
-			}
+		"Abort": func(txn *lmdb.Txn) {
+			defer runtime.UnlockOSThread()
+			txn.Abort()
 		},
-		"Get": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) []byte {
+		"DbOpen": func(txn *lmdb.Txn, name string, flags uint32) (dbi lmdb.DBI, err error) {
+			return txn.OpenDBI(name, uint(flags)&dbFlags)
+		},
+		"DbStat": func(txn *lmdb.Txn, dbi lmdb.DBI) (stat *lmdb.Stat, err error) {
+			return txn.Stat(dbi)
+		},
+		"DbDrop": func(txn *lmdb.Txn, dbi lmdb.DBI) (err error) {
+			return txn.Drop(dbi, true)
+		},
+		"Put": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte, flags uint32) (err error) {
+			return txn.Put(dbi, key, val, uint(flags)&txnPutFlags)
+		},
+		"Get": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) ([]byte, error) {
 			v, err := txn.Get(dbi, key)
-			if err != nil && !lmdb.IsNotFound(err) {
-				panic(err)
+			if err != nil {
+				return nil, err
 			}
 			val = val[:len(v)]
 			copy(val, v)
-			return val
+			return val, nil
 		},
-		"Del": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) {
-			err := txn.Del(dbi, key, val)
-			if err != nil && !lmdb.IsNotFound(err) {
-				panic(err)
-			}
+		"Del": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) (err error) {
+			return txn.Del(dbi, key, val)
 		},
-		"CursorOpen": func(txn *lmdb.Txn, dbi lmdb.DBI) *lmdb.Cursor {
-			cur, err := txn.OpenCursor(dbi)
-			if err != nil {
-				panic(err)
-			}
-			return cur
+		"CursorOpen": func(txn *lmdb.Txn, dbi lmdb.DBI) (cur *lmdb.Cursor, err error) {
+			return txn.OpenCursor(dbi)
 		},
-		"CursorGet": func(cur *lmdb.Cursor, key, val []byte, flags uint32) ([]byte, []byte) {
+		"CursorGet": func(cur *lmdb.Cursor, key, val []byte, flags uint32) ([]byte, []byte, error) {
 			k, v, err := cur.Get(key, val, uint(flags)&curGetFlags)
-			if err != nil && !lmdb.IsNotFound(err) {
-				panic(err)
+			if err != nil {
+				return nil, nil, err
 			}
 			key = key[:len(k)]
 			copy(key, k)
 			val = val[:len(v)]
 			copy(val, v)
-			return key, val
+			return key, val, nil
 		},
-		"CursorDel": func(cur *lmdb.Cursor, flags uint32) {
-			err := cur.Del(uint(flags))
-			if err != nil && !lmdb.IsNotFound(err) {
-				panic(err)
-			}
+		"CursorDel": func(cur *lmdb.Cursor, flags uint32) error {
+			return cur.Del(uint(flags))
 		},
-		"CursorPut": func(cur *lmdb.Cursor, key, val []byte, flags uint32) {
-			err := cur.Put(key, val, uint(flags)&curPutFlags)
-			if err != nil && !lmdb.IsNotFound(err) {
-				panic(err)
-			}
+		"CursorPut": func(cur *lmdb.Cursor, key, val []byte, flags uint32) error {
+			return cur.Put(key, val, uint(flags)&curPutFlags)
 		},
 		"CursorClose": func(cur *lmdb.Cursor) {
 			cur.Close()
 		},
 	} {
 		switch fn := fn.(type) {
-		case func(context.Context, string, uint32) uint32:
+		case func(context.Context, string, uint32) (uint32, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				envID := fn(ctx, string(key(m, meta)), flags(m, meta))
+				envID, err := fn(ctx, string(key(m, meta)), flags(m, meta))
+				if writeError(m, meta, err) {
+					return
+				}
 				writeUint32(m, meta.ptrEnv, uint32(envID))
 			})
-		case func(context.Context, uint32):
+		case func(context.Context, uint32) error:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				fn(ctx, envID(m, meta))
+				err := fn(ctx, envID(m, meta))
+				writeError(m, meta, err)
 			})
-		case func(*lmdb.Env) *lmdb.Stat:
+		case func(*lmdb.Env) (*lmdb.Stat, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				stat := fn(p.env(ctx, m, meta))
+				stat, err := fn(p.env(ctx, m, meta))
+				if writeError(m, meta, err) {
+					return
+				}
 				val := append(valBuf(m, meta), statToBytes(stat)...)
 				writeUint32(m, meta.ptrValLen, uint32(len(val)))
 			})
-		case func(*lmdb.Txn, string, uint32) lmdb.DBI:
+		case func(*lmdb.Txn, string, uint32) (lmdb.DBI, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				dbi := fn(txn(m, meta), string(key(m, meta)), flags(m, meta))
+				dbi, err := fn(txn(m, meta), string(key(m, meta)), flags(m, meta))
+				if writeError(m, meta, err) {
+					return
+				}
 				writeUint32(m, meta.ptrDbi, uint32(dbi))
 			})
-		case func(*lmdb.Txn, lmdb.DBI):
+		case func(*lmdb.Txn, lmdb.DBI) error:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				fn(txn(m, meta), dbi(m, meta))
+				err := fn(txn(m, meta), dbi(m, meta))
+				writeError(m, meta, err)
 			})
-		case func(*lmdb.Txn, lmdb.DBI) *lmdb.Stat:
+		case func(*lmdb.Txn, lmdb.DBI) (*lmdb.Stat, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				stat := fn(txn(m, meta), dbi(m, meta))
+				stat, err := fn(txn(m, meta), dbi(m, meta))
+				if writeError(m, meta, err) {
+					return
+				}
 				val := append(valBuf(m, meta), statToBytes(stat)...)
 				writeUint32(m, meta.ptrValLen, uint32(len(val)))
 			})
-		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte):
+		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte) error:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				fn(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta))
+				err := fn(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta))
+				writeError(m, meta, err)
 			})
-		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte, uint32):
+		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte, uint32) error:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				fn(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta), flags(m, meta))
+				err := fn(txn(m, meta), dbi(m, meta), key(m, meta), val(m, meta), flags(m, meta))
+				writeError(m, meta, err)
 			})
-		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte) []byte:
+		case func(*lmdb.Txn, lmdb.DBI, []byte, []byte) ([]byte, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				val := fn(txn(m, meta), dbi(m, meta), key(m, meta), valBuf(m, meta))
+				val, err := fn(txn(m, meta), dbi(m, meta), key(m, meta), valBuf(m, meta))
+				if writeError(m, meta, err) {
+					return
+				}
 				writeUint32(m, meta.ptrValLen, uint32(len(val)))
 			})
-		case func(*lmdb.Cursor, uint32):
+		case func(*lmdb.Cursor, uint32) error:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				fn(cur(m, meta), flags(m, meta))
+				err := fn(cur(m, meta), flags(m, meta))
+				writeError(m, meta, err)
 			})
 		case func(*lmdb.Cursor):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
 				fn(cur(m, meta))
 			})
-		case func(*lmdb.Cursor, []byte, []byte, uint32) ([]byte, []byte):
+		case func(*lmdb.Cursor, []byte, []byte, uint32) ([]byte, []byte, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				key, val := fn(cur(m, meta), key(m, meta), val(m, meta), flags(m, meta))
+				key, val, err := fn(cur(m, meta), key(m, meta), val(m, meta), flags(m, meta))
+				if writeError(m, meta, err) {
+					return
+				}
 				writeUint32(m, meta.ptrKeyLen, uint32(len(key)))
 				writeUint32(m, meta.ptrValLen, uint32(len(val)))
 			})
-		case func(*lmdb.Cursor, []byte, []byte, uint32):
+		case func(*lmdb.Cursor, []byte, []byte, uint32) error:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				fn(cur(m, meta), key(m, meta), val(m, meta), flags(m, meta))
+				err := fn(cur(m, meta), key(m, meta), val(m, meta), flags(m, meta))
+				writeError(m, meta, err)
 			})
-		case func(*lmdb.Txn, lmdb.DBI) *lmdb.Cursor:
+		case func(*lmdb.Txn, lmdb.DBI) (*lmdb.Cursor, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				cur := fn(txn(m, meta), dbi(m, meta))
+				cur, err := fn(txn(m, meta), dbi(m, meta))
+				if writeError(m, meta, err) {
+					return
+				}
 				meta.curID++
 				meta.cursor[meta.curID] = cur
 				writeUint32(m, meta.ptrCur, meta.curID)
 			})
-		case func(*lmdb.Env, *lmdb.Txn, uint32) *lmdb.Txn:
+		case func(*lmdb.Env, *lmdb.Txn, uint32) (*lmdb.Txn, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
 				var parent *lmdb.Txn
@@ -399,7 +404,10 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 				if parentID > 0 {
 					parent = meta.txn[parentID]
 				}
-				txn := fn(p.env(ctx, m, meta), parent, flags(m, meta))
+				txn, err := fn(p.env(ctx, m, meta), parent, flags(m, meta))
+				if writeError(m, meta, err) {
+					return
+				}
 				meta.txnID++
 				meta.txn[meta.txnID] = txn
 				writeUint32(m, meta.ptrTxn, meta.txnID)
@@ -409,6 +417,13 @@ func (p *module) Register(ctx context.Context, runtime wazero.Runtime) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
 				fn(txn(m, meta))
 				delete(meta.txn, txnID(m, meta))
+			})
+		case func(*lmdb.Txn) error:
+			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
+				meta := get[*meta](ctx, p.ctxKeyMeta)
+				err := fn(txn(m, meta))
+				delete(meta.txn, txnID(m, meta))
+				writeError(m, meta, err)
 			})
 		default:
 			log.Panicf("Method signature implementation missing: %#v", fn)
@@ -577,12 +592,12 @@ func txnID(m api.Module, meta *meta) uint32 {
 	return readUint32(m, meta.ptrTxn)
 }
 
-func beginTxn(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (t *lmdb.Txn) {
-	t, err := env.BeginTxn(parent, uint(flags)&txnFlags)
+func beginTxn(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (txn *lmdb.Txn, err error) {
+	txn, err = env.BeginTxn(parent, uint(flags)&txnFlags)
 	if err != nil {
-		panic(err)
+		return
 	}
-	t.RawRead = true
+	txn.RawRead = true
 	return
 }
 
@@ -596,6 +611,7 @@ func statToBytes(s *lmdb.Stat) []byte {
 	binary.LittleEndian.PutUint64(b[40:48], uint64(s.Entries))
 	return b
 }
+
 func statFromBytes(b []byte) *lmdb.Stat {
 	return &lmdb.Stat{
 		PSize:         uint(binary.LittleEndian.Uint64(b[0:8])),

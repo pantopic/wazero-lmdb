@@ -40,17 +40,26 @@ func stat() uint64 {
 
 //export begin
 func begin() {
-	txn = env.BeginTxn(nil, 0)
+	txn, err = env.BeginTxn(nil, 0)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export beginread
 func beginread() {
-	txn = env.BeginTxn(nil, lmdb.Readonly)
+	txn, err = env.BeginTxn(nil, lmdb.Readonly)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export db
 func db() {
-	dbi = txn.OpenDBI("test", lmdb.Create)
+	dbi, err = txn.OpenDBI("test", lmdb.Create)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //export dbstat
@@ -74,9 +83,23 @@ func set() {
 
 //export get
 func get() {
-	v := txn.Get(dbi, []byte(`a`))
+	v, err := txn.Get(dbi, []byte(`a`))
+	if err != nil {
+		panic(err)
+	}
 	if string(v) != `1` {
 		panic(`wrong value`)
+	}
+}
+
+//export getmissing
+func getmissing() {
+	_, err := txn.Get(dbi, []byte(`ddd`))
+	if err == nil {
+		panic(`error not returned`)
+	}
+	if !lmdb.IsNotFound(err) {
+		panic(err)
 	}
 }
 
@@ -97,7 +120,10 @@ func set2() {
 
 //export get2
 func get2() {
-	v := txn.Get(dbi, []byte(`b`))
+	v, err := txn.Get(dbi, []byte(`b`))
+	if err != nil {
+		panic(err)
+	}
 	if string(v) != `2` {
 		panic(`wrong value`)
 	}
@@ -105,37 +131,52 @@ func get2() {
 
 //export update
 func update() {
-	env.Update(func(txn *lmdb.Txn) error {
+	if err := env.Update(func(txn *lmdb.Txn) error {
 		txn.Put(dbi, []byte(`b`), []byte(`22`), 0)
 		return nil
-	})
+	}); err != nil {
+		panic(err)
+	}
 }
 
 //export updatefail
 func updatefail() {
-	env.Update(func(txn *lmdb.Txn) error {
+	if err := env.Update(func(txn *lmdb.Txn) error {
 		txn.Put(dbi, []byte(`b`), []byte(`222`), 0)
 		return errors.New(`I can't believe you've done this.`)
-	})
+	}); err != nil {
+		// panic(err)
+	}
 }
 
 //export view
 func view() {
-	env.View(func(txn *lmdb.Txn) {
-		v := txn.Get(dbi, []byte(`b`))
-		if string(v) != `22` {
-			panic(`wrong value`)
+	env.View(func(txn *lmdb.Txn) (err error) {
+		v, err := txn.Get(dbi, []byte(`b`))
+		if err != nil {
+			return
 		}
+		if string(v) != `22` {
+			err = errors.New("Wrong value: " + string(v) + " != 22")
+		}
+		return
 	})
 }
 
 //export stress
 func stress(limit uint32) {
-	txn = env.BeginTxn(nil, 0)
-	dbi = txn.OpenDBI("test", lmdb.Create)
+	txn, err = env.BeginTxn(nil, 0)
+	if err != nil {
+		panic(err)
+	}
+	if dbi, err = txn.OpenDBI("test", lmdb.Create); err != nil {
+		panic(err)
+	}
 	n := int64(limit)
 	for i := range n {
-		txn.Put(dbi, []byte(strconv.FormatInt(i+1e15, 16)), []byte(strconv.FormatInt(n-i+1e15, 16)), 0)
+		if err := txn.Put(dbi, []byte(strconv.FormatInt(i+1e15, 16)), []byte(strconv.FormatInt(n-i+1e15, 16)), 0); err != nil {
+			panic(err)
+		}
 	}
 	txn.Commit()
 }
@@ -152,8 +193,12 @@ func close() {
 
 //export cursoropen
 func cursoropen() {
-	dbi = txn.OpenDBI("test", lmdb.Create)
-	cur = txn.OpenCursor(dbi)
+	if dbi, err = txn.OpenDBI("test", lmdb.Create); err != nil {
+		panic(err)
+	}
+	if cur, err = txn.OpenCursor(dbi); err != nil {
+		panic(err)
+	}
 }
 
 //export cursorfirst
@@ -236,3 +281,4 @@ var _ = view
 var _ = update
 var _ = updatefail
 var _ = delete
+var _ = getmissing
