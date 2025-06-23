@@ -31,6 +31,6 @@ jobs:
     - name: Update coverage badge
       uses: kevburnsjr/go-coverage-report@base-dir
       with:
-        coverage-file: host/coverage.out
+        coverage-file: coverage.out
         base-dir: host
       continue-on-error: true
