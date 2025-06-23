@@ -64,6 +64,10 @@ func lmdbEnvOpen()
 func lmdbEnvStat()
 
 //go:wasm-module lmdb
+//export EnvSync
+func lmdbEnvSync()
+
+//go:wasm-module lmdb
 //export EnvClose
 func lmdbEnvClose()
 

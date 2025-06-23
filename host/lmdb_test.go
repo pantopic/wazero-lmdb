@@ -53,261 +53,243 @@ func TestModule(t *testing.T) {
 
 	tenantID := 1
 	ctx = context.WithValue(ctx, module.ctxKeyPath, fmt.Sprintf(`%s/local/%016x`, path, tenantID))
-	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
+
+	call := func(cmd string, params ...uint64) bool {
+		if _, err := mod.ExportedFunction(cmd).Call(ctx, params...); err != nil {
+			t.Errorf("%v\n%s", err, out.String())
+			panic(1)
+			return false
+		}
+		return true
 	}
-	stack, err := mod.ExportedFunction("stat").Call(ctx)
-	buf, _ := mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	stat := statFromBytes(buf)
-	if stat.Entries != 0 {
-		t.Errorf("Wrong number of entries: %v", string(buf))
-		return
+	stat := func(n uint64) bool {
+		stack, err := mod.ExportedFunction("stat").Call(ctx)
+		if err != nil {
+			panic(err)
+		}
+		buf, _ := mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+		if statFromBytes(buf).Entries != n {
+			t.Errorf("Wrong number of entries: %v", string(buf))
+			panic(1)
+			return false
+		}
+		return true
 	}
-	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
+	dbstat := func(n uint64) bool {
+		stack, err := mod.ExportedFunction("dbstat").Call(ctx)
+		if err != nil {
+			panic(err)
+		}
+		buf, _ := mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
+		if statFromBytes(buf).Entries != n {
+			t.Errorf("Wrong number of entries: %+v", statFromBytes(buf))
+			panic(1)
+			return false
+		}
+		return true
 	}
-	if _, err := mod.ExportedFunction("db").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 0 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("set").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("stat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 1 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 1 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("get").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("getmissing").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("set2").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("abort").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("stat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 1 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 1 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("set2").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("get2").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("stat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 1 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 2 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("get2").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("abort").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("del").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 1 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 1 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("update").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("updatefail").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("view").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("cursoropen").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("cursorfirst").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("cursorput").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("cursorcurrent").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("cursorclose").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 2 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("cursoropen").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("cursorfirst").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("cursornext").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("cursordel").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 1 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("close").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
+	t.Run("open", func(t *testing.T) {
+		if !call("open") {
+			return
+		}
+		if !stat(0) {
+			return
+		}
+	})
+
+	t.Run("set", func(t *testing.T) {
+		t.Run("commit", func(t *testing.T) {
+			if !call("begin") {
+				return
+			}
+			if !call("db") {
+				return
+			}
+			if !dbstat(0) {
+				return
+			}
+			if !call("set") {
+				return
+			}
+			if !call("commit") {
+				return
+			}
+			if !stat(1) {
+				return
+			}
+		})
+		t.Run("abort", func(t *testing.T) {
+			if !call("begin") {
+				return
+			}
+			if !dbstat(1) {
+				return
+			}
+			if !call("get") {
+				return
+			}
+			if !call("getmissing") {
+				return
+			}
+			if !call("set2") {
+				return
+			}
+			if !call("abort") {
+				return
+			}
+			if !stat(1) {
+				return
+			}
+		})
+	})
+	t.Run("sync", func(t *testing.T) {
+		if !call("sync") {
+			return
+		}
+	})
+	t.Run("get", func(t *testing.T) {
+		if !call("begin") {
+			return
+		}
+		if !dbstat(1) {
+			return
+		}
+		if !call("set2") {
+			return
+		}
+		if !call("get2") {
+			return
+		}
+		if !call("commit") {
+			return
+		}
+		if !stat(1) {
+			return
+		}
+		if !call("beginread") {
+			return
+		}
+		if !dbstat(2) {
+			return
+		}
+		if !call("get2") {
+			return
+		}
+		if !call("abort") {
+			return
+		}
+	})
+	t.Run("del", func(t *testing.T) {
+		if !call("begin") {
+			return
+		}
+		if !call("del") {
+			return
+		}
+		if !dbstat(1) {
+			return
+		}
+		if !call("commit") {
+			return
+		}
+		if !call("beginread") {
+			return
+		}
+		if !dbstat(1) {
+			return
+		}
+		if !call("commit") {
+			return
+		}
+	})
+	t.Run("update", func(t *testing.T) {
+		t.Run("success", func(t *testing.T) {
+			if !call("update") {
+				return
+			}
+		})
+		t.Run("failure", func(t *testing.T) {
+			if !call("updatefail") {
+				return
+			}
+		})
+	})
+	t.Run("view", func(t *testing.T) {
+		if !call("view") {
+			return
+		}
+	})
+	t.Run("cursor", func(t *testing.T) {
+		if !call("begin") {
+			return
+		}
+		if !call("cursoropen") {
+			return
+		}
+		if !call("cursorfirst") {
+			return
+		}
+		if !call("cursorput") {
+			return
+		}
+		if !call("cursorcurrent") {
+			return
+		}
+		if !call("cursorclose") {
+			return
+		}
+		if !call("commit") {
+			return
+		}
+		if !call("beginread") {
+			return
+		}
+		if !dbstat(2) {
+			return
+		}
+		if !call("commit") {
+			return
+		}
+		if !call("begin") {
+			return
+		}
+		if !call("cursoropen") {
+			return
+		}
+		if !call("cursorfirst") {
+			return
+		}
+		if !call("cursornext") {
+			return
+		}
+		if !call("cursordel") {
+			return
+		}
+		if !call("commit") {
+			return
+		}
+		if !call("beginread") {
+			return
+		}
+		if !dbstat(1) {
+			return
+		}
+		if !call("commit") {
+			return
+		}
+	})
+	t.Run("env", func(t *testing.T) {
+		if !call("close") {
+			return
+		}
+		if !call("open") {
+			return
+		}
+		if !call("open") {
+			return
+		}
+	})
+	if !call("open") {
 		return
 	}
 	module.Reset(ctx)
@@ -317,92 +299,80 @@ func TestModule(t *testing.T) {
 	module.TenantSync(ctx)
 	module.TenantClose(ctx)
 	module.TenantDelete(ctx)
-	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
+
 	var n uint64 = 10_000
-	start := time.Now()
-	if _, err := mod.ExportedFunction("stress").Call(ctx, n); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	t.Logf(`Stress: %v per Put`, time.Since(start)/time.Duration(n))
-	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != n {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("dbdrop").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("stat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 0 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("begin").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("db").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 0 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("set").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("commit").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("beginread").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	stack, err = mod.ExportedFunction("dbstat").Call(ctx)
-	buf, _ = mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-	if statFromBytes(buf).Entries != 1 {
-		t.Errorf("Wrong number of entries: %v", stat.Entries)
-		return
-	}
-	if _, err := mod.ExportedFunction("close").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("close").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("delete").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("delete").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
-	if _, err := mod.ExportedFunction("open").Call(ctx); err != nil {
-		t.Errorf("%v\n%s", err, out.String())
-		return
-	}
+	t.Run("stress", func(t *testing.T) {
+		if !call("open") {
+			return
+		}
+		start := time.Now()
+		if !call("stress", n) {
+			return
+		}
+		t.Logf(`Stress: %v per Put`, time.Since(start)/time.Duration(n))
+		if !call("begin") {
+			return
+		}
+		if !dbstat(n) {
+			return
+		}
+		if !call("commit") {
+			return
+		}
+	})
+	t.Run("dbdrop", func(t *testing.T) {
+		if !stat(1) {
+			return
+		}
+		if !call("begin") {
+			return
+		}
+		if !call("dbdrop") {
+			return
+		}
+		if !call("commit") {
+			return
+		}
+		if !call("begin") {
+			return
+		}
+		if !call("db") {
+			return
+		}
+		if !dbstat(0) {
+			return
+		}
+		if !call("set") {
+			return
+		}
+		if !call("commit") {
+			return
+		}
+		if !call("beginread") {
+			return
+		}
+		if !dbstat(1) {
+			return
+		}
+	})
+	t.Run("close", func(t *testing.T) {
+		if !call("close") {
+			return
+		}
+		if !call("close") {
+			return
+		}
+	})
+	t.Run("delete", func(t *testing.T) {
+		if !call("delete") {
+			return
+		}
+		if !call("delete") {
+			return
+		}
+		if !call("open") {
+			return
+		}
+	})
 	module.Stop()
 }

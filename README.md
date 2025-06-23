@@ -12,10 +12,10 @@ First register the host module with the runtime
 
 ```go
 import (
-	"github.com/pantopic/wazero-lmdb/host"
-
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+
+	"github.com/pantopic/wazero-lmdb/host"
 )
 
 func main() {
@@ -59,8 +59,8 @@ func set() {
 
 //export get
 func get() uint64 {
-	env, _ := lmdb.Open("test")
 	var val []byte
+	env, _ := lmdb.Open("test")
 	env.View(func(txn *lmdb.Txn) (err error) {
 		dbi, _ := txn.DbOpen("dbname")
 		val, err = txn.Get(dbi, []byte(`hello`))

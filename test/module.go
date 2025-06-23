@@ -38,6 +38,14 @@ func stat() uint64 {
 	return sliceToPtr(s.ToBytes())
 }
 
+//export sync
+func sync() {
+	err := env.Sync()
+	if err != nil {
+		panic(err)
+	}
+}
+
 //export begin
 func begin() {
 	txn, err = env.BeginTxn(nil, 0)

@@ -224,6 +224,9 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 			}
 			return
 		},
+		"EnvSync": func(env *lmdb.Env) error {
+			return env.Sync(true)
+		},
 		"Begin": func(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (txn *lmdb.Txn, err error) {
 			if flags&lmdb.Readonly == 0 {
 				runtime.LockOSThread()
@@ -311,6 +314,12 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 				}
 				val := append(valBuf(m, meta), statToBytes(stat)...)
 				writeUint32(m, meta.ptrValLen, uint32(len(val)))
+			})
+		case func(*lmdb.Env) error:
+			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
+				meta := get[*meta](ctx, p.ctxKeyMeta)
+				err := fn(p.env(ctx, m, meta))
+				writeError(m, meta, err)
 			})
 		case func(*lmdb.Txn, string, uint32) (lmdb.DBI, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {

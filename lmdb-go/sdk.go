@@ -61,6 +61,15 @@ func Open(name string, flags uint32) (env *Env, err error) {
 	return
 }
 
+func (e *Env) Sync() (err error) {
+	envID = e.id
+	lmdbEnvSync()
+	if errCode > 0 {
+		err = opError{Errno(errCode), getVal()}
+	}
+	return
+}
+
 func (e *Env) Stat() (s *Stat, err error) {
 	envID = e.id
 	lmdbEnvStat()
