@@ -1,4 +1,4 @@
-# Wazero LMDB
+# Wazero LMDB [![License](https://img.shields.io/badge/License-Apache_2.0-dd6600.svg)](https://opensource.org/licenses/Apache-2.0)
 
 A [wazero](https://github.com/tetratelabs/wazero) host module, ABI and guest SDK providing [LMDB](https://github.com/PowerDNS/lmdb-go/lmdb) for WASI modules.
 
@@ -90,8 +90,3 @@ This project is in alpha. Breaking API changes should be expected until Beta.
 - `v1.x.x` - General Availability
   - [ ] Proven long term stability in production
 
-## License
-
-[![License](https://img.shields.io/badge/License-Apache_2.0-dd6600.svg)](https://opensource.org/licenses/Apache-2.0)
-
-Licensed under Apache 2.0
