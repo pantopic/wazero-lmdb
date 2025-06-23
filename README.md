@@ -2,10 +2,13 @@
 
 A [wazero](https://github.com/tetratelabs/wazero) host module, ABI and guest SDK providing [LMDB](https://github.com/PowerDNS/lmdb-go/lmdb) for WASI modules.
 
-[![Go Reference](https://godoc.org/github.com/pantopic/wazero-lmdb/host?status.svg)](https://godoc.org/github.com/pantopic/wazero-lmdb/host)
 [![License](https://img.shields.io/badge/License-Apache_2.0-dd6600.svg)](https://opensource.org/licenses/Apache-2.0)
+
+## host
+
+[![Go Reference](https://godoc.org/github.com/pantopic/wazero-lmdb/host?status.svg)](https://godoc.org/github.com/pantopic/wazero-lmdb/host)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/wazero-lmdb/host)](https://goreportcard.com/report/github.com/pantopic/wazero-lmdb/host)
-[![Go Coverage](https://github.com/pantopic/wazero-lmdb/wiki/coverage.svg)](https://raw.githack.com/wiki/pantopic/wazero-lmdb/coverage.html)
+[![Go Coverage](https://github.com/pantopic/wazero-lmdb/wiki/host/coverage.svg)](https://raw.githack.com/wiki/pantopic/wazero-lmdb/host/coverage.html)
 
 First register the host module with the runtime
 
@@ -27,6 +30,11 @@ func main() {
 	// ...
 }
 ```
+
+## lmdb-go SDK
+
+[![Go Reference](https://godoc.org/github.com/pantopic/wazero-lmdb/lmdb-go?status.svg)](https://godoc.org/github.com/pantopic/wazero-lmdb/lmdb-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/wazero-lmdb/lmdb-go)](https://goreportcard.com/report/github.com/pantopic/wazero-lmdb/lmdb-go)
 
 Then you can import the guest SDK into your WASI module to create and manage LMDB environments from WASM.
 
