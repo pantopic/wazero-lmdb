@@ -1,6 +1,6 @@
 # Wazero LMDB
 
-A [wazero](https://github.com/tetratelabs/wazero) host module, ABI and guest SDK providing [LMDB](https://github.com/PowerDNS/lmdb-go/lmdb) for WASI modules.
+A [wazero](https://pkg.go.dev/github.com/tetratelabs/wazero) host module, ABI and guest SDK providing [LMDB](https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb) for WASI modules.
 
 ## Host Module
 
@@ -75,7 +75,7 @@ The [ABI](lmdb/abi.go) is ~130 lines of code and the [SDK](lmdb/sdk.go) is ~400 
 to port this guest SDK if you want to use the Host Module from WASM modules written in other guest languages
 (i.e. Rust). Contributions welcome.
 
-Wazero prides itself on having no dependencies and neither does [lmdb-go](https://github.com/PowerDNS/lmdb-go/lmdb)
+Wazero prides itself on having no dependencies and neither does [lmdb-go](https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb)
 (apart from CGO), so your [go.sum](go.sum) should remain tidy.
 
 ## Roadmap
