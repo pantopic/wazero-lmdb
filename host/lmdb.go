@@ -15,8 +15,12 @@ import (
 )
 
 var (
-	DefaultCtxKeyMeta = `module_lmdb_meta`
-	DefaultCtxKeyPath = `tenant_lmdb_path`
+	DefaultCtxKeyMeta    = `wazero_lmdb_meta_key`
+	DefaultCtxKeyMapSize = `wazero_lmdb_map_size`
+	DefaultCtxKeyMaxDBs  = `wazero_lmdb_max_dbs`
+	DefaultCtxKeyPath    = `wazero_lmdb_path`
+	DefaultMapSize       = int64(64 << 30) // 64 GiB
+	DefaultMaxDBs        = int(1 << 16)    // 65536
 
 	optEnv      uint = lmdb.NoMemInit | lmdb.NoReadahead | lmdb.NoSync | lmdb.NoMetaSync | lmdb.NoLock | lmdb.NoSubdir
 	openFlags   uint = lmdb.NoReadahead | lmdb.Create
@@ -64,16 +68,24 @@ func newTenant() *tenant {
 type module struct {
 	sync.RWMutex
 
-	ctxKeyMeta string
-	ctxKeyPath string
-	tenants    map[string]*tenant
+	ctxKeyMapSize string
+	ctxKeyMaxDBs  string
+	ctxKeyMeta    string
+	ctxKeyPath    string
+	mapSize       int64
+	maxDBs        int
+	tenants       map[string]*tenant
 }
 
 func New(opts ...Option) *module {
 	p := &module{
-		ctxKeyMeta: DefaultCtxKeyMeta,
-		ctxKeyPath: DefaultCtxKeyPath,
-		tenants:    map[string]*tenant{},
+		mapSize:       DefaultMapSize,
+		maxDBs:        DefaultMaxDBs,
+		ctxKeyMapSize: DefaultCtxKeyMapSize,
+		ctxKeyMaxDBs:  DefaultCtxKeyMaxDBs,
+		ctxKeyMeta:    DefaultCtxKeyMeta,
+		ctxKeyPath:    DefaultCtxKeyPath,
+		tenants:       map[string]*tenant{},
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -131,13 +143,11 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 				}
 				p.Unlock()
 			}
+			tenant.RLock()
+			envID, ok = tenant.envNames[name]
+			tenant.RUnlock()
 			if ok {
-				tenant.RLock()
-				envID, ok := tenant.envNames[name]
-				tenant.RUnlock()
-				if ok {
-					return envID, nil
-				}
+				return envID, nil
 			}
 			err = os.MkdirAll(path, 0755)
 			if err != nil {
@@ -147,12 +157,28 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 			if err != nil {
 				return
 			}
-			env.SetMaxDBs(1 << 16)
-			env.SetMapSize(int64(1 << 37))
+			maxDBs := p.maxDBs
+			if v := ctx.Value(p.ctxKeyMaxDBs); v != nil {
+				if vi, ok := v.(int); ok {
+					maxDBs = vi
+				}
+			}
+			if err = env.SetMaxDBs(maxDBs); err != nil {
+				return
+			}
+			mapSize := p.mapSize
+			if v := ctx.Value(p.ctxKeyMapSize); v != nil {
+				if vi, ok := v.(int64); ok {
+					mapSize = vi
+				}
+			}
+			if err = env.SetMapSize(mapSize); err != nil {
+				return
+			}
 			path += "/" + name + ".mdb"
 			err = env.Open(path, optEnv|(uint(flags)&openFlags), 0700)
 			if err != nil {
-				panic(err)
+				return
 			}
 			tenant.Lock()
 			defer tenant.Unlock()
@@ -440,31 +466,30 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 	}
 }
 
-func (p *module) TenantClose(ctx context.Context) {
+func (p *module) TenantClose(ctx context.Context) (err error) {
 	path := get[string](ctx, p.ctxKeyPath)
 	p.Lock()
 	defer p.Unlock()
 	tenant, ok := p.tenants[path]
 	if !ok {
-		return
+		return nil
 	}
 	delete(p.tenants, path)
 	envs := tenant.envs
 	for _, env := range envs {
-		if err := env.Close(); err != nil {
-			panic(err)
+		if err = env.Close(); err != nil {
+			break
 		}
 	}
+	return
 }
 
-func (p *module) TenantDelete(ctx context.Context) {
+func (p *module) TenantDelete(ctx context.Context) (err error) {
 	path := get[string](ctx, p.ctxKeyPath)
-	if err := os.RemoveAll(path); err != nil {
-		panic(err)
-	}
+	return os.RemoveAll(path)
 }
 
-func (p *module) TenantSync(ctx context.Context) {
+func (p *module) TenantSync(ctx context.Context) (err error) {
 	path := get[string](ctx, p.ctxKeyPath)
 	p.RLock()
 	defer p.RUnlock()
@@ -474,10 +499,11 @@ func (p *module) TenantSync(ctx context.Context) {
 	}
 	envs := tenant.envs
 	for _, env := range envs {
-		if err := env.Sync(true); err != nil {
-			panic(err)
+		if err = env.Sync(true); err != nil {
+			break
 		}
 	}
+	return
 }
 
 func (p *module) Reset(ctx context.Context) {
@@ -494,20 +520,21 @@ func (p *module) Reset(ctx context.Context) {
 	meta.txnID = 0
 }
 
-func (p *module) Stop() {
+func (p *module) Stop() (err error) {
 	p.RLock()
 	defer p.RUnlock()
 	for _, tenant := range p.tenants {
 		for _, env := range tenant.envs {
-			if err := env.Sync(true); err != nil {
-				panic(err.Error())
+			if err = env.Sync(true); err != nil {
+				return
 			}
-			if err := env.Close(); err != nil {
-				panic(err.Error())
+			if err = env.Close(); err != nil {
+				return
 			}
 		}
 	}
-	p.tenants = map[string]*tenant{}
+	clear(p.tenants)
+	return
 }
 
 func (p *module) env(ctx context.Context, m api.Module, meta *meta) *lmdb.Env {

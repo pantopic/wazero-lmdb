@@ -13,3 +13,15 @@ func WithCtxKeyPath(key string) Option {
 		p.ctxKeyPath = key
 	}
 }
+
+func WithCtxKeyMaxDBs(key string) Option {
+	return func(p *module) {
+		p.ctxKeyMaxDBs = key
+	}
+}
+
+func WithCtxKeyMapSize(key string) Option {
+	return func(p *module) {
+		p.ctxKeyMapSize = key
+	}
+}

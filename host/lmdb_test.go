@@ -54,267 +54,130 @@ func TestModule(t *testing.T) {
 	tenantID := 1
 	ctx = context.WithValue(ctx, module.ctxKeyPath, fmt.Sprintf(`%s/local/%016x`, path, tenantID))
 
-	call := func(cmd string, params ...uint64) bool {
+	call := func(cmd string, params ...uint64) {
 		if _, err := mod.ExportedFunction(cmd).Call(ctx, params...); err != nil {
-			t.Errorf("%v\n%s", err, out.String())
-			panic(1)
-			return false
+			t.Fatalf("%v\n%s", err, out.String())
 		}
-		return true
 	}
-	stat := func(n uint64) bool {
+	stat := func(n uint64) {
 		stack, err := mod.ExportedFunction("stat").Call(ctx)
 		if err != nil {
-			panic(err)
+			t.Fatalf(`%v`, err)
 		}
 		buf, _ := mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
 		if statFromBytes(buf).Entries != n {
-			t.Errorf("Wrong number of entries: %v", string(buf))
-			panic(1)
-			return false
+			t.Fatalf("Wrong number of entries: %v", string(buf))
 		}
-		return true
 	}
-	dbstat := func(n uint64) bool {
+	dbstat := func(n uint64) {
 		stack, err := mod.ExportedFunction("dbstat").Call(ctx)
 		if err != nil {
-			panic(err)
+			t.Fatalf(`%v`, err)
 		}
 		buf, _ := mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
 		if statFromBytes(buf).Entries != n {
-			t.Errorf("Wrong number of entries: %+v", statFromBytes(buf))
-			panic(1)
-			return false
+			t.Fatalf("Wrong number of entries: %+v", statFromBytes(buf))
 		}
-		return true
 	}
 	t.Run("open", func(t *testing.T) {
-		if !call("open") {
-			return
-		}
-		if !stat(0) {
-			return
-		}
+		call("open")
+		stat(0)
 	})
 
 	t.Run("set", func(t *testing.T) {
 		t.Run("commit", func(t *testing.T) {
-			if !call("begin") {
-				return
-			}
-			if !call("db") {
-				return
-			}
-			if !dbstat(0) {
-				return
-			}
-			if !call("set") {
-				return
-			}
-			if !call("commit") {
-				return
-			}
-			if !stat(1) {
-				return
-			}
+			call("begin")
+			call("db")
+			dbstat(0)
+			call("set")
+			call("commit")
+			stat(1)
 		})
 		t.Run("abort", func(t *testing.T) {
-			if !call("begin") {
-				return
-			}
-			if !dbstat(1) {
-				return
-			}
-			if !call("get") {
-				return
-			}
-			if !call("getmissing") {
-				return
-			}
-			if !call("set2") {
-				return
-			}
-			if !call("abort") {
-				return
-			}
-			if !stat(1) {
-				return
-			}
+			call("begin")
+			dbstat(1)
+			call("get")
+			call("getmissing")
+			call("set2")
+			call("abort")
+			stat(1)
 		})
 	})
 	t.Run("sync", func(t *testing.T) {
-		if !call("sync") {
-			return
-		}
+		call("sync")
 	})
 	t.Run("get", func(t *testing.T) {
-		if !call("begin") {
-			return
-		}
-		if !dbstat(1) {
-			return
-		}
-		if !call("set2") {
-			return
-		}
-		if !call("get2") {
-			return
-		}
-		if !call("commit") {
-			return
-		}
-		if !stat(1) {
-			return
-		}
-		if !call("beginread") {
-			return
-		}
-		if !dbstat(2) {
-			return
-		}
-		if !call("get2") {
-			return
-		}
-		if !call("abort") {
-			return
-		}
+		call("begin")
+		dbstat(1)
+		call("set2")
+		call("get2")
+		call("commit")
+		stat(1)
+		call("beginread")
+		dbstat(2)
+		call("get2")
+		call("abort")
 	})
 	t.Run("del", func(t *testing.T) {
-		if !call("begin") {
-			return
-		}
-		if !call("del") {
-			return
-		}
-		if !dbstat(1) {
-			return
-		}
-		if !call("commit") {
-			return
-		}
-		if !call("beginread") {
-			return
-		}
-		if !dbstat(1) {
-			return
-		}
-		if !call("commit") {
-			return
-		}
+		call("begin")
+		call("del")
+		dbstat(1)
+		call("commit")
+		call("beginread")
+		dbstat(1)
+		call("commit")
 	})
 	t.Run("update", func(t *testing.T) {
-		t.Run("success", func(t *testing.T) {
-			if !call("update") {
-				return
-			}
-		})
-		t.Run("failure", func(t *testing.T) {
-			if !call("updatefail") {
-				return
-			}
-		})
+		call("update")
+		call("updatefail")
 	})
 	t.Run("view", func(t *testing.T) {
-		if !call("view") {
-			return
-		}
+		call("view")
 	})
 	t.Run("sub", func(t *testing.T) {
-		if !call("beginread") || !dbstat(1) || !call("commit") {
-			return
-		}
-		if !call("subabort") {
-			return
-		}
-		if !call("beginread") || !dbstat(1) || !call("commit") {
-			return
-		}
-		if !call("sub") {
-			return
-		}
-		if !call("beginread") || !dbstat(2) || !call("commit") {
-			return
-		}
-		if !call("subdel") {
-			return
-		}
-		if !call("beginread") || !dbstat(1) || !call("commit") {
-			return
-		}
+		call("beginread")
+		dbstat(1)
+		call("commit")
+		call("subabort")
+		call("beginread")
+		dbstat(1)
+		call("commit")
+		call("sub")
+		call("beginread")
+		dbstat(2)
+		call("commit")
+		call("subdel")
+		call("beginread")
+		dbstat(1)
+		call("commit")
 	})
 	t.Run("cursor", func(t *testing.T) {
-		if !call("begin") {
-			return
-		}
-		if !call("cursoropen") {
-			return
-		}
-		if !call("cursorfirst") {
-			return
-		}
-		if !call("cursorput") {
-			return
-		}
-		if !call("cursorcurrent") {
-			return
-		}
-		if !call("cursorclose") {
-			return
-		}
-		if !call("commit") {
-			return
-		}
-		if !call("beginread") {
-			return
-		}
-		if !dbstat(2) {
-			return
-		}
-		if !call("commit") {
-			return
-		}
-		if !call("begin") {
-			return
-		}
-		if !call("cursoropen") {
-			return
-		}
-		if !call("cursorfirst") {
-			return
-		}
-		if !call("cursornext") {
-			return
-		}
-		if !call("cursordel") {
-			return
-		}
-		if !call("commit") {
-			return
-		}
-		if !call("beginread") {
-			return
-		}
-		if !dbstat(1) {
-			return
-		}
-		if !call("commit") {
-			return
-		}
+		call("begin")
+		call("cursoropen")
+		call("cursorfirst")
+		call("cursorput")
+		call("cursorcurrent")
+		call("cursorclose")
+		call("commit")
+		call("beginread")
+		dbstat(2)
+		call("commit")
+		call("begin")
+		call("cursoropen")
+		call("cursorfirst")
+		call("cursornext")
+		call("cursordel")
+		call("commit")
+		call("beginread")
+		dbstat(1)
+		call("commit")
 	})
 	t.Run("env", func(t *testing.T) {
-		if !call("close") {
-			return
-		}
-		if !call("open") {
-			return
-		}
-		if !call("open") {
-			return
-		}
+		call("close")
+		call("open")
+		call("open")
 	})
-	if !call("open") {
-		return
-	}
+	call("open")
 	module.Reset(ctx)
 	module.TenantSync(ctx)
 	module.TenantClose(ctx)
@@ -322,80 +185,37 @@ func TestModule(t *testing.T) {
 	module.TenantSync(ctx)
 	module.TenantClose(ctx)
 	module.TenantDelete(ctx)
-
 	var n uint64 = 10_000
 	t.Run("stress", func(t *testing.T) {
-		if !call("open") {
-			return
-		}
+		call("open")
 		start := time.Now()
-		if !call("stress", n) {
-			return
-		}
+		call("stress", n)
 		t.Logf(`Stress: %v per Put`, time.Since(start)/time.Duration(n))
-		if !call("begin") {
-			return
-		}
-		if !dbstat(n) {
-			return
-		}
-		if !call("commit") {
-			return
-		}
+		call("begin")
+		dbstat(n)
+		call("commit")
 	})
 	t.Run("dbdrop", func(t *testing.T) {
-		if !stat(1) {
-			return
-		}
-		if !call("begin") {
-			return
-		}
-		if !call("dbdrop") {
-			return
-		}
-		if !call("commit") {
-			return
-		}
-		if !call("begin") {
-			return
-		}
-		if !call("db") {
-			return
-		}
-		if !dbstat(0) {
-			return
-		}
-		if !call("set") {
-			return
-		}
-		if !call("commit") {
-			return
-		}
-		if !call("beginread") {
-			return
-		}
-		if !dbstat(1) {
-			return
-		}
+		stat(1)
+		call("begin")
+		call("dbdrop")
+		call("commit")
+		call("begin")
+		call("db")
+		dbstat(0)
+		call("set")
+		call("commit")
+		call("beginread")
+		dbstat(1)
 	})
 	t.Run("close", func(t *testing.T) {
-		if !call("close") {
-			return
-		}
-		if !call("close") {
-			return
-		}
+		call("close")
+		call("close")
 	})
 	t.Run("delete", func(t *testing.T) {
-		if !call("delete") {
-			return
-		}
-		if !call("delete") {
-			return
-		}
-		if !call("open") {
-			return
-		}
+		call("delete")
+		call("delete")
+		call("open")
 	})
 	module.Stop()
 }

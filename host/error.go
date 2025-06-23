@@ -63,8 +63,6 @@ var lmdbError = map[string]Errno{
 	os.ErrPermission.Error(): Permission,
 }
 
-var osError = map[string]Errno{}
-
 func writeError(m api.Module, meta *meta, err error) bool {
 	if err == nil {
 		writeUint32(m, meta.ptrErr, uint32(None))
