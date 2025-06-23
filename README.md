@@ -2,9 +2,7 @@
 
 A [wazero](https://github.com/tetratelabs/wazero) host module, ABI and guest SDK providing [LMDB](https://github.com/PowerDNS/lmdb-go/lmdb) for WASI modules.
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-dd6600.svg)](https://opensource.org/licenses/Apache-2.0)
-
-## host
+## Host Module
 
 [![Go Reference](https://godoc.org/github.com/pantopic/wazero-lmdb/host?status.svg)](https://godoc.org/github.com/pantopic/wazero-lmdb/host)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/wazero-lmdb/host)](https://goreportcard.com/report/github.com/pantopic/wazero-lmdb/host)
@@ -15,6 +13,7 @@ First register the host module with the runtime
 ```go
 import (
 	"github.com/pantopic/wazero-lmdb/host"
+
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
@@ -31,7 +30,7 @@ func main() {
 }
 ```
 
-## lmdb-go SDK
+## Guest SDK (Go)
 
 [![Go Reference](https://godoc.org/github.com/pantopic/wazero-lmdb/lmdb-go?status.svg)](https://godoc.org/github.com/pantopic/wazero-lmdb/lmdb-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/wazero-lmdb/lmdb-go)](https://goreportcard.com/report/github.com/pantopic/wazero-lmdb/lmdb-go)
@@ -88,5 +87,7 @@ This project is in alpha. Breaking API changes should be expected until Beta.
   - [ ] Proven long term stability in production
 
 ## License
+
+[![License](https://img.shields.io/badge/License-Apache_2.0-dd6600.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Licensed under Apache 2.0
