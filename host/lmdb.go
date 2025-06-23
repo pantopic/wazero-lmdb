@@ -93,10 +93,10 @@ func New(opts ...Option) *module {
 	return p
 }
 
-func (p *module) InitContext(ctx context.Context, m api.Module) context.Context {
+func (p *module) InitContext(ctx context.Context, m api.Module) (context.Context, error) {
 	stack, err := m.ExportedFunction(`lmdb`).Call(ctx)
 	if err != nil {
-		panic(err)
+		return ctx, err
 	}
 	meta := &meta{
 		txn:    make(map[uint32]*lmdb.Txn),
@@ -115,7 +115,7 @@ func (p *module) InitContext(ctx context.Context, m api.Module) context.Context 
 	meta.ptrErr, _ = m.Memory().ReadUint32Le(ptr + 36)
 	meta.ptrKey, _ = m.Memory().ReadUint32Le(ptr + 40)
 	meta.ptrVal, _ = m.Memory().ReadUint32Le(ptr + 44)
-	return context.WithValue(ctx, p.ctxKeyMeta, meta)
+	return context.WithValue(ctx, p.ctxKeyMeta, meta), nil
 }
 
 func (p *module) Register(ctx context.Context, r wazero.Runtime) {
@@ -247,6 +247,9 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 				if id == envID {
 					delete(tenant.envNames, name)
 				}
+			}
+			if len(tenant.envs) == 0 {
+				delete(p.tenants, path)
 			}
 			return
 		},

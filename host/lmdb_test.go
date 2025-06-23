@@ -30,6 +30,8 @@ func TestModule(t *testing.T) {
 	module := New(
 		WithCtxKeyMeta(`test_meta_key`),
 		WithCtxKeyPath(`test_path_key`),
+		WithCtxKeyMaxDBs(`test_max_dbs`),
+		WithCtxKeyMapSize(`test_map_size`),
 	)
 	module.Register(ctx, r)
 
@@ -38,21 +40,25 @@ func TestModule(t *testing.T) {
 		panic(err)
 	}
 	cfg := wazero.NewModuleConfig().WithStdout(out)
-	mod, err := r.InstantiateModule(ctx, compiled, cfg.WithName("test"))
+	mod, err := r.InstantiateModule(ctx, compiled, cfg)
 	if err != nil {
 		t.Errorf(`%v`, err)
 		return
 	}
 
-	ctx = module.InitContext(ctx, mod)
+	ctx, err = module.InitContext(ctx, mod)
+	if err != nil {
+		t.Fatalf(`%v`, err)
+	}
 	meta := get[*meta](ctx, module.ctxKeyMeta)
 	if readUint32(mod, meta.ptrKeyMax) != 511 {
 		t.Errorf("incorrect maximum key length: %#v", meta)
-		return
 	}
 
 	tenantID := 1
 	ctx = context.WithValue(ctx, module.ctxKeyPath, fmt.Sprintf(`%s/local/%016x`, path, tenantID))
+	ctx = context.WithValue(ctx, module.ctxKeyMaxDBs, 256)
+	ctx = context.WithValue(ctx, module.ctxKeyMapSize, int64(16<<20))
 
 	call := func(cmd string, params ...uint64) {
 		if _, err := mod.ExportedFunction(cmd).Call(ctx, params...); err != nil {
@@ -213,6 +219,7 @@ func TestModule(t *testing.T) {
 		call("close")
 	})
 	t.Run("delete", func(t *testing.T) {
+		call("open")
 		call("delete")
 		call("delete")
 		call("open")
