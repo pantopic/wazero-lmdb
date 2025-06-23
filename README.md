@@ -43,7 +43,7 @@ package main
 import (
 	"unsafe"
 
-	"github.com/pantopic/wazero-lmdb/lmdb"
+	"github.com/pantopic/wazero-lmdb/lmdb-go"
 )
 
 func main() {}
