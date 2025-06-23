@@ -89,7 +89,3 @@ This project is in alpha. Breaking API changes should be expected until Beta.
   - [ ] Test in production
 - `v1.x.x` - General Availability
   - [ ] Proven long term stability in production
-
-# License
-
-[![License](https://img.shields.io/badge/License-Apache_2.0-dd6600.svg)](https://opensource.org/licenses/Apache-2.0)
