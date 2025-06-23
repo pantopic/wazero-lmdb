@@ -108,7 +108,7 @@ func (e *Env) BeginTxn(parent *Txn, flags uint32) (txn *Txn, err error) {
 		err = opError{Errno(errCode), getVal()}
 		return
 	}
-	txn = &Txn{txnID}
+	txn = &Txn{e, txnID}
 	return
 }
 
@@ -138,7 +138,8 @@ func (e *Env) Update(fn func(*Txn) error) (err error) {
 // Txn represents an LMDB transaction
 // See https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb#Txn
 type Txn struct {
-	id uint32
+	env *Env
+	id  uint32
 }
 
 func (t *Txn) CreateDBI(name string, flags uint32) (dbi DBI, err error) {
@@ -242,6 +243,19 @@ func (t *Txn) Commit() (err error) {
 func (t *Txn) Abort() {
 	txnID = t.id
 	lmdbAbort()
+}
+
+func (t *Txn) Sub(fn func(*Txn) error) (err error) {
+	txn, err := t.env.BeginTxn(t, 0)
+	if err != nil {
+		return
+	}
+	if err = fn(txn); err == nil {
+		err = txn.Commit()
+	} else {
+		txn.Abort()
+	}
+	return
 }
 
 // Cursor represents an LMDB cursor

@@ -189,6 +189,41 @@ func view() {
 	}
 }
 
+//export sub
+func sub() {
+	if err := env.Update(func(txn *lmdb.Txn) error {
+		return txn.Sub(func(txn *lmdb.Txn) error {
+			return txn.Put(dbi, []byte(`sub`), []byte(`txn`), 0)
+		})
+	}); err != nil {
+		panic(err)
+	}
+}
+
+//export subabort
+func subabort() {
+	if err := env.Update(func(txn *lmdb.Txn) error {
+		txn.Sub(func(txn *lmdb.Txn) error {
+			txn.Put(dbi, []byte(`sub`), []byte(`txn`), 0)
+			return errors.New(`I can't believe you've done this.`)
+		})
+		return nil
+	}); err != nil {
+		panic(err)
+	}
+}
+
+//export subdel
+func subdel() {
+	if err := env.Update(func(txn *lmdb.Txn) error {
+		return txn.Sub(func(txn *lmdb.Txn) error {
+			return txn.Del(dbi, []byte(`sub`), nil)
+		})
+	}); err != nil {
+		panic(err)
+	}
+}
+
 //export stress
 func stress(limit uint32) {
 	txn, err = env.BeginTxn(nil, 0)
@@ -329,3 +364,6 @@ var _ = update
 var _ = updatefail
 var _ = delete
 var _ = getmissing
+var _ = sub
+var _ = subabort
+var _ = subdel

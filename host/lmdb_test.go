@@ -219,6 +219,29 @@ func TestModule(t *testing.T) {
 			return
 		}
 	})
+	t.Run("sub", func(t *testing.T) {
+		if !call("beginread") || !dbstat(1) || !call("commit") {
+			return
+		}
+		if !call("subabort") {
+			return
+		}
+		if !call("beginread") || !dbstat(1) || !call("commit") {
+			return
+		}
+		if !call("sub") {
+			return
+		}
+		if !call("beginread") || !dbstat(2) || !call("commit") {
+			return
+		}
+		if !call("subdel") {
+			return
+		}
+		if !call("beginread") || !dbstat(1) || !call("commit") {
+			return
+		}
+	})
 	t.Run("cursor", func(t *testing.T) {
 		if !call("begin") {
 			return
