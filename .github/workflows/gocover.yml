@@ -25,12 +25,13 @@ jobs:
     - name: Build WASM
       run: cd test && tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o ../host/test.wasm module.go
 
-    - name: Cover
+    - name: Cover Host
       run: cd host && go test . -coverprofile coverage.out
 
-    - name: Update coverage badge
+    - name: Update Host coverage badge
       uses: kevburnsjr/go-coverage-report@base-dir
       with:
         coverage-file: coverage.out
         base-dir: host
+        output-dir: host
       continue-on-error: true
