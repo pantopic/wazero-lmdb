@@ -61,9 +61,10 @@ func set() {
 func get() uint64 {
 	env, _ := lmdb.Open("test")
 	var val []byte
-	env.View(func(txn *lmdb.Txn) {
+	env.View(func(txn *lmdb.Txn) (err error) {
 		dbi, _ := txn.DbOpen("dbname")
-		val = txn.Get(dbi, []byte(`hello`))
+		val, err = txn.Get(dbi, []byte(`hello`))
+		return
 	})
 	return uint64(uintptr(unsafe.Pointer(&val[0])))<<32 + uint64(len(val))
 }
