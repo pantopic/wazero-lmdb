@@ -50,29 +50,32 @@ func main() {}
 
 //export set
 func set() {
-	lmdb.Open("test", lmdb.Create).Update(func(txn *lmdb.Txn) error {
-		txn.Put(txn.DbOpen("dbname", lmdb.Create), []byte(`hello`), []byte(`world`))
-		return nil
+	env, _ := lmdb.Open("test", lmdb.Create)
+	env.Update(func(txn *lmdb.Txn) error {
+		dbi, _ := txn.DbCreate("dbname")
+		return txn.Put(dbi, []byte(`hello`), []byte(`world`))
 	})
 }
 
 //export get
 func get() uint64 {
+	env, _ := lmdb.Open("test")
 	var val []byte
-	lmdb.Open("test").View(func(txn *lmdb.Txn) {
-		val = txn.Get(txn.DbOpen("dbname"), []byte(`hello`))
+	env.View(func(txn *lmdb.Txn) {
+		dbi, _ := txn.DbOpen("dbname")
+		val = txn.Get(dbi, []byte(`hello`))
 	})
 	return uint64(uintptr(unsafe.Pointer(&val[0])))<<32 + uint64(len(val))
 }
 ```
 
 The [guest SDK](https://pkg.go.dev/github.com/pantopic/wazero-lmdb/lmdb) has no dependencies outside the Go std lib.
-The [ABI](lmdb/abi.go) is ~130 lines of code and the [SDK](lmdb/sdk.go) is ~200 lines of code so it should be simple
-to port this guest SDK if you want to use use this Host Module in other guest languages (i.e. Rust).
-Contributions welcome.
+The [ABI](lmdb/abi.go) is ~130 lines of code and the [SDK](lmdb/sdk.go) is ~400 lines of code so it should be simple
+to port this guest SDK if you want to use the Host Module from WASM modules written in other guest languages
+(i.e. Rust). Contributions welcome.
 
-Wazero prides itself on having no dependencies and neither does [lmdb-go](https://github.com/PowerDNS/lmdb-go/lmdb) so your
-[go.sum](go.sum) should remain tidy.
+Wazero prides itself on having no dependencies and neither does [lmdb-go](https://github.com/PowerDNS/lmdb-go/lmdb)
+(apart from CGO), so your [go.sum](go.sum) should remain tidy.
 
 ## Roadmap
 
