@@ -50,9 +50,8 @@ func main() {}
 
 //export set
 func set() {
-	env, _ := lmdb.Open("test", lmdb.Create)
-	env.Update(func(txn *lmdb.Txn) error {
-		dbi, _ := txn.DbCreate("dbname")
+	lmdb.Update(func(txn *lmdb.Txn) error {
+		dbi, _ := txn.DbCreate("test")
 		return txn.Put(dbi, []byte(`hello`), []byte(`world`))
 	})
 }
@@ -60,9 +59,8 @@ func set() {
 //export get
 func get() uint64 {
 	var val []byte
-	env, _ := lmdb.Open("test")
-	env.View(func(txn *lmdb.Txn) (err error) {
-		dbi, _ := txn.DbOpen("dbname")
+	lmdb.View(func(txn *lmdb.Txn) (err error) {
+		dbi, _ := txn.DbOpen("test")
 		val, err = txn.Get(dbi, []byte(`hello`))
 		return
 	})
