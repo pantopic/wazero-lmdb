@@ -10,45 +10,14 @@ import (
 
 func main() {}
 
-var env *lmdb.Env
 var txn *lmdb.Txn
-var dbi lmdb.DBI
 var cur *lmdb.Cursor
+var dbi lmdb.DBI
 var err error
-
-//export open
-func open() {
-	env, err = lmdb.Open("test", lmdb.Create)
-	if err != nil {
-		panic(err)
-	}
-}
-
-//export delete
-func delete() {
-	env.Delete()
-}
-
-//export stat
-func stat() uint64 {
-	s, err := env.Stat()
-	if err != nil {
-		panic(err)
-	}
-	return sliceToPtr(s.ToBytes())
-}
-
-//export sync
-func sync() {
-	err := env.Sync()
-	if err != nil {
-		panic(err)
-	}
-}
 
 //export begin
 func begin() {
-	txn, err = env.BeginTxn(nil, 0)
+	txn, err = lmdb.BeginTxn(nil, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -56,7 +25,7 @@ func begin() {
 
 //export beginread
 func beginread() {
-	txn, err = env.BeginTxn(nil, lmdb.Readonly)
+	txn, err = lmdb.BeginTxn(nil, lmdb.Readonly)
 	if err != nil {
 		panic(err)
 	}
@@ -154,7 +123,7 @@ func get2() {
 
 //export update
 func update() {
-	if err := env.Update(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn *lmdb.Txn) error {
 		txn.Put(dbi, []byte(`b`), []byte(`22`), 0)
 		return nil
 	}); err != nil {
@@ -164,7 +133,7 @@ func update() {
 
 //export updatefail
 func updatefail() {
-	if err := env.Update(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn *lmdb.Txn) error {
 		txn.Put(dbi, []byte(`b`), []byte(`222`), 0)
 		return errors.New(`I can't believe you've done this.`)
 	}); err == nil {
@@ -174,7 +143,7 @@ func updatefail() {
 
 //export view
 func view() {
-	err := env.View(func(txn *lmdb.Txn) (err error) {
+	err := lmdb.View(func(txn *lmdb.Txn) (err error) {
 		v, err := txn.Get(dbi, []byte(`b`))
 		if err != nil {
 			return
@@ -189,9 +158,22 @@ func view() {
 	}
 }
 
+//export clear
+func clear() {
+	if err := lmdb.Update(func(txn *lmdb.Txn) error {
+		dbi, err = txn.OpenDBI("test", lmdb.Create)
+		if err != nil {
+			panic(err)
+		}
+		return txn.Drop(dbi)
+	}); err != nil {
+		panic(err)
+	}
+}
+
 //export sub
 func sub() {
-	if err := env.Update(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn *lmdb.Txn) error {
 		return txn.Sub(func(txn *lmdb.Txn) error {
 			return txn.Put(dbi, []byte(`sub`), []byte(`txn`), 0)
 		})
@@ -202,7 +184,7 @@ func sub() {
 
 //export subabort
 func subabort() {
-	if err := env.Update(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn *lmdb.Txn) error {
 		txn.Sub(func(txn *lmdb.Txn) error {
 			txn.Put(dbi, []byte(`sub`), []byte(`txn`), 0)
 			return errors.New(`I can't believe you've done this.`)
@@ -215,7 +197,7 @@ func subabort() {
 
 //export subdel
 func subdel() {
-	if err := env.Update(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn *lmdb.Txn) error {
 		return txn.Sub(func(txn *lmdb.Txn) error {
 			return txn.Del(dbi, []byte(`sub`), nil)
 		})
@@ -226,7 +208,7 @@ func subdel() {
 
 //export stress
 func stress(limit uint32) {
-	txn, err = env.BeginTxn(nil, 0)
+	txn, err = lmdb.BeginTxn(nil, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -248,14 +230,6 @@ func stress(limit uint32) {
 //export abort
 func abort() {
 	txn.Abort()
-}
-
-//export close
-func close() {
-	err := env.Close()
-	if err != nil {
-		panic(err)
-	}
 }
 
 //export cursoropen
@@ -336,8 +310,6 @@ func sliceToPtr(b []byte) uint64 {
 }
 
 // Fix for lint rule `unusedfunc`
-var _ = open
-var _ = stat
 var _ = begin
 var _ = db
 var _ = dbstat
@@ -345,7 +317,6 @@ var _ = set
 var _ = set2
 var _ = commit
 var _ = abort
-var _ = close
 var _ = get
 var _ = get2
 var _ = beginread
@@ -362,8 +333,8 @@ var _ = cursordel
 var _ = view
 var _ = update
 var _ = updatefail
-var _ = delete
 var _ = getmissing
 var _ = sub
 var _ = subabort
 var _ = subdel
+var _ = clear

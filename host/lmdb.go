@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"log"
-	"os"
 	"runtime"
 	"sync"
 
@@ -15,20 +14,14 @@ import (
 )
 
 var (
-	DefaultCtxKeyMeta    = `wazero_lmdb_meta_key`
-	DefaultCtxKeyMapSize = `wazero_lmdb_map_size`
-	DefaultCtxKeyMaxDBs  = `wazero_lmdb_max_dbs`
-	DefaultCtxKeyPath    = `wazero_lmdb_path`
-	DefaultMapSize       = int64(64 << 30) // 64 GiB
-	DefaultMaxDBs        = int(1 << 16)    // 65536
+	DefaultCtxKeyMeta = `wazero_lmdb_meta_key`
+	DefaultCtxKeyEnv  = `wazero_lmdb_env`
 
-	optEnv      uint = lmdb.NoMemInit | lmdb.NoReadahead | lmdb.NoSync | lmdb.NoMetaSync | lmdb.NoLock | lmdb.NoSubdir
-	openFlags   uint = lmdb.NoReadahead | lmdb.Create
-	dbFlags     uint = lmdb.Create | lmdb.DupSort
-	txnFlags    uint = lmdb.Readonly
-	txnPutFlags uint = lmdb.NoDupData | lmdb.NoOverwrite | lmdb.Append | lmdb.AppendDup
-	curPutFlags uint = lmdb.NoDupData | lmdb.NoOverwrite | lmdb.Append | lmdb.AppendDup | lmdb.Current
-	curGetFlags uint = 1<<18 - 1
+	dbFlagMask     uint = lmdb.Create | lmdb.DupSort
+	txnFlagMask    uint = lmdb.Readonly
+	txnPutFlagMask uint = lmdb.NoDupData | lmdb.NoOverwrite | lmdb.Append | lmdb.AppendDup
+	curPutFlagMask uint = lmdb.NoDupData | lmdb.NoOverwrite | lmdb.Append | lmdb.AppendDup | lmdb.Current
+	curGetFlagMask uint = 1<<18 - 1
 )
 
 type meta struct {
@@ -44,48 +37,23 @@ type meta struct {
 	ptrErr    uint32
 	ptrKey    uint32
 	ptrVal    uint32
+	env       *lmdb.Env
 	txn       map[uint32]*lmdb.Txn
 	cursor    map[uint32]*lmdb.Cursor
 	txnID     uint32
 	curID     uint32
 }
 
-type tenant struct {
-	sync.RWMutex
-
-	envID    uint32
-	envNames map[string]uint32
-	envs     map[uint32]*lmdb.Env
-}
-
-func newTenant() *tenant {
-	return &tenant{
-		envNames: map[string]uint32{},
-		envs:     map[uint32]*lmdb.Env{},
-	}
-}
-
 type module struct {
 	sync.RWMutex
 
-	ctxKeyMapSize string
-	ctxKeyMaxDBs  string
-	ctxKeyMeta    string
-	ctxKeyPath    string
-	mapSize       int64
-	maxDBs        int
-	tenants       map[string]*tenant
+	ctxKeyMeta string
+	ctxKeyEnv  string
 }
 
 func New(opts ...Option) *module {
 	p := &module{
-		mapSize:       DefaultMapSize,
-		maxDBs:        DefaultMaxDBs,
-		ctxKeyMapSize: DefaultCtxKeyMapSize,
-		ctxKeyMaxDBs:  DefaultCtxKeyMaxDBs,
-		ctxKeyMeta:    DefaultCtxKeyMeta,
-		ctxKeyPath:    DefaultCtxKeyPath,
-		tenants:       map[string]*tenant{},
+		ctxKeyEnv: DefaultCtxKeyEnv,
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -107,14 +75,13 @@ func (p *module) InitContext(ctx context.Context, m api.Module) (context.Context
 	meta.ptrValMax, _ = m.Memory().ReadUint32Le(ptr + 4)
 	meta.ptrKeyLen, _ = m.Memory().ReadUint32Le(ptr + 8)
 	meta.ptrValLen, _ = m.Memory().ReadUint32Le(ptr + 12)
-	meta.ptrEnv, _ = m.Memory().ReadUint32Le(ptr + 16)
-	meta.ptrTxn, _ = m.Memory().ReadUint32Le(ptr + 20)
-	meta.ptrDbi, _ = m.Memory().ReadUint32Le(ptr + 24)
-	meta.ptrCur, _ = m.Memory().ReadUint32Le(ptr + 28)
-	meta.ptrFlg, _ = m.Memory().ReadUint32Le(ptr + 32)
-	meta.ptrErr, _ = m.Memory().ReadUint32Le(ptr + 36)
-	meta.ptrKey, _ = m.Memory().ReadUint32Le(ptr + 40)
-	meta.ptrVal, _ = m.Memory().ReadUint32Le(ptr + 44)
+	meta.ptrTxn, _ = m.Memory().ReadUint32Le(ptr + 16)
+	meta.ptrDbi, _ = m.Memory().ReadUint32Le(ptr + 20)
+	meta.ptrCur, _ = m.Memory().ReadUint32Le(ptr + 24)
+	meta.ptrFlg, _ = m.Memory().ReadUint32Le(ptr + 28)
+	meta.ptrErr, _ = m.Memory().ReadUint32Le(ptr + 32)
+	meta.ptrKey, _ = m.Memory().ReadUint32Le(ptr + 36)
+	meta.ptrVal, _ = m.Memory().ReadUint32Le(ptr + 40)
 	return context.WithValue(ctx, p.ctxKeyMeta, meta), nil
 }
 
@@ -129,133 +96,6 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 		builder = builder.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(fn), nil, nil).Export(name)
 	}
 	for name, fn := range map[string]any{
-		"EnvOpen": func(ctx context.Context, name string, flags uint32) (envID uint32, err error) {
-			path := get[string](ctx, p.ctxKeyPath)
-			p.RLock()
-			tenant, ok := p.tenants[path]
-			p.RUnlock()
-			if !ok {
-				p.Lock()
-				tenant, ok = p.tenants[path]
-				if !ok {
-					tenant = newTenant()
-					p.tenants[path] = tenant
-				}
-				p.Unlock()
-			}
-			tenant.RLock()
-			envID, ok = tenant.envNames[name]
-			tenant.RUnlock()
-			if ok {
-				return envID, nil
-			}
-			err = os.MkdirAll(path, 0755)
-			if err != nil {
-				return
-			}
-			env, err := lmdb.NewEnv()
-			if err != nil {
-				return
-			}
-			maxDBs := p.maxDBs
-			if v := ctx.Value(p.ctxKeyMaxDBs); v != nil {
-				if vi, ok := v.(int); ok {
-					maxDBs = vi
-				}
-			}
-			if err = env.SetMaxDBs(maxDBs); err != nil {
-				return
-			}
-			mapSize := p.mapSize
-			if v := ctx.Value(p.ctxKeyMapSize); v != nil {
-				if vi, ok := v.(int64); ok {
-					mapSize = vi
-				}
-			}
-			if err = env.SetMapSize(mapSize); err != nil {
-				return
-			}
-			path += "/" + name + ".mdb"
-			err = env.Open(path, optEnv|(uint(flags)&openFlags), 0700)
-			if err != nil {
-				return
-			}
-			tenant.Lock()
-			defer tenant.Unlock()
-			tenant.envID++
-			tenant.envs[tenant.envID] = env
-			tenant.envNames[name] = tenant.envID
-			return tenant.envID, nil
-		},
-		"EnvStat": func(env *lmdb.Env) (stat *lmdb.Stat, err error) {
-			return env.Stat()
-		},
-		"EnvClose": func(ctx context.Context, envID uint32) (err error) {
-			path := get[string](ctx, p.ctxKeyPath)
-			p.Lock()
-			defer p.Unlock()
-			tenant, ok := p.tenants[path]
-			if !ok {
-				return
-			}
-			tenant.Lock()
-			defer tenant.Unlock()
-			env, ok := tenant.envs[envID]
-			if !ok {
-				return
-			}
-			if err = env.Close(); err != nil {
-				return
-			}
-			delete(tenant.envs, envID)
-			for name, id := range tenant.envNames {
-				if id == envID {
-					delete(tenant.envNames, name)
-				}
-			}
-			if len(tenant.envs) == 0 {
-				delete(p.tenants, path)
-			}
-			return
-		},
-		"EnvDelete": func(ctx context.Context, envID uint32) (err error) {
-			path := get[string](ctx, p.ctxKeyPath)
-			p.Lock()
-			defer p.Unlock()
-			tenant, ok := p.tenants[path]
-			if !ok {
-				return
-			}
-			tenant.Lock()
-			defer tenant.Unlock()
-			env, ok := tenant.envs[envID]
-			if !ok {
-				return
-			}
-			path, err = env.Path()
-			if err != nil {
-				return
-			}
-			if err = env.Close(); err != nil {
-				return
-			}
-			if err = os.Remove(path); err != nil {
-				return
-			}
-			delete(tenant.envs, envID)
-			for name, id := range tenant.envNames {
-				if id == envID {
-					delete(tenant.envNames, name)
-				}
-			}
-			if len(tenant.envs) == 0 {
-				delete(p.tenants, path)
-			}
-			return
-		},
-		"EnvSync": func(env *lmdb.Env) error {
-			return env.Sync(true)
-		},
 		"Begin": func(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (txn *lmdb.Txn, err error) {
 			if flags&lmdb.Readonly == 0 {
 				runtime.LockOSThread()
@@ -271,7 +111,7 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 			txn.Abort()
 		},
 		"DbOpen": func(txn *lmdb.Txn, name string, flags uint32) (dbi lmdb.DBI, err error) {
-			return txn.OpenDBI(name, uint(flags)&dbFlags)
+			return txn.OpenDBI(name, uint(flags)&dbFlagMask)
 		},
 		"DbStat": func(txn *lmdb.Txn, dbi lmdb.DBI) (stat *lmdb.Stat, err error) {
 			return txn.Stat(dbi)
@@ -280,7 +120,7 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 			return txn.Drop(dbi, true)
 		},
 		"Put": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte, flags uint32) (err error) {
-			return txn.Put(dbi, key, val, uint(flags)&txnPutFlags)
+			return txn.Put(dbi, key, val, uint(flags)&txnPutFlagMask)
 		},
 		"Get": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) ([]byte, error) {
 			v, err := txn.Get(dbi, key)
@@ -298,7 +138,7 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 			return txn.OpenCursor(dbi)
 		},
 		"CursorGet": func(cur *lmdb.Cursor, key, val []byte, flags uint32) ([]byte, []byte, error) {
-			k, v, err := cur.Get(key, val, uint(flags)&curGetFlags)
+			k, v, err := cur.Get(key, val, uint(flags)&curGetFlagMask)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -312,7 +152,7 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 			return cur.Del(uint(flags))
 		},
 		"CursorPut": func(cur *lmdb.Cursor, key, val []byte, flags uint32) error {
-			return cur.Put(key, val, uint(flags)&curPutFlags)
+			return cur.Put(key, val, uint(flags)&curPutFlagMask)
 		},
 		"CursorClose": func(cur *lmdb.Cursor) {
 			cur.Close()
@@ -469,46 +309,6 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 	}
 }
 
-func (p *module) TenantClose(ctx context.Context) (err error) {
-	path := get[string](ctx, p.ctxKeyPath)
-	p.Lock()
-	defer p.Unlock()
-	tenant, ok := p.tenants[path]
-	if !ok {
-		return nil
-	}
-	delete(p.tenants, path)
-	envs := tenant.envs
-	for _, env := range envs {
-		if err = env.Close(); err != nil {
-			break
-		}
-	}
-	return
-}
-
-func (p *module) TenantDelete(ctx context.Context) (err error) {
-	path := get[string](ctx, p.ctxKeyPath)
-	return os.RemoveAll(path)
-}
-
-func (p *module) TenantSync(ctx context.Context) (err error) {
-	path := get[string](ctx, p.ctxKeyPath)
-	p.RLock()
-	defer p.RUnlock()
-	tenant, ok := p.tenants[path]
-	if !ok {
-		return
-	}
-	envs := tenant.envs
-	for _, env := range envs {
-		if err = env.Sync(true); err != nil {
-			break
-		}
-	}
-	return
-}
-
 func (p *module) Reset(ctx context.Context) {
 	meta := get[*meta](ctx, p.ctxKeyMeta)
 	for id, txn := range meta.txn {
@@ -524,36 +324,11 @@ func (p *module) Reset(ctx context.Context) {
 }
 
 func (p *module) Stop() (err error) {
-	p.RLock()
-	defer p.RUnlock()
-	for _, tenant := range p.tenants {
-		for _, env := range tenant.envs {
-			if err = env.Sync(true); err != nil {
-				return
-			}
-			if err = env.Close(); err != nil {
-				return
-			}
-		}
-	}
-	clear(p.tenants)
 	return
 }
 
 func (p *module) env(ctx context.Context, m api.Module, meta *meta) *lmdb.Env {
-	p.RLock()
-	defer p.RUnlock()
-	path := get[string](ctx, p.ctxKeyPath)
-	tenant, ok := p.tenants[path]
-	if !ok {
-		log.Panicf("Tenant not found: %s", path)
-	}
-	envID := envID(m, meta)
-	env, ok := tenant.envs[envID]
-	if !ok {
-		log.Panicf("Env not found: %d", envID)
-	}
-	return env
+	return get[*lmdb.Env](ctx, p.ctxKeyEnv)
 }
 
 func get[T any](ctx context.Context, key string) T {
@@ -632,7 +407,7 @@ func txnID(m api.Module, meta *meta) uint32 {
 }
 
 func beginTxn(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (txn *lmdb.Txn, err error) {
-	txn, err = env.BeginTxn(parent, uint(flags)&txnFlags)
+	txn, err = env.BeginTxn(parent, uint(flags)&txnFlagMask)
 	if err != nil {
 		return
 	}

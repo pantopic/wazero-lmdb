@@ -9,7 +9,6 @@ var (
 	maxVal  uint32 = 1.5 * 1024 * 1024
 	keyLen  uint32
 	valLen  uint32
-	envID   uint32
 	txnID   uint32
 	expDbi  DBI
 	curID   uint32
@@ -17,7 +16,7 @@ var (
 	errCode uint32
 	key     = make([]byte, int(maxKey))
 	val     = make([]byte, int(maxVal))
-	meta    = make([]uint32, 12)
+	meta    = make([]uint32, 11)
 )
 
 //export lmdb
@@ -26,14 +25,13 @@ func lmdb() (res uint32) {
 	meta[1] = uint32(uintptr(unsafe.Pointer(&maxVal)))
 	meta[2] = uint32(uintptr(unsafe.Pointer(&keyLen)))
 	meta[3] = uint32(uintptr(unsafe.Pointer(&valLen)))
-	meta[4] = uint32(uintptr(unsafe.Pointer(&envID)))
-	meta[5] = uint32(uintptr(unsafe.Pointer(&txnID)))
-	meta[6] = uint32(uintptr(unsafe.Pointer(&expDbi)))
-	meta[7] = uint32(uintptr(unsafe.Pointer(&curID)))
-	meta[8] = uint32(uintptr(unsafe.Pointer(&expFlg)))
-	meta[9] = uint32(uintptr(unsafe.Pointer(&errCode)))
-	meta[10] = uint32(uintptr(unsafe.Pointer(&key[0])))
-	meta[11] = uint32(uintptr(unsafe.Pointer(&val[0])))
+	meta[4] = uint32(uintptr(unsafe.Pointer(&txnID)))
+	meta[5] = uint32(uintptr(unsafe.Pointer(&expDbi)))
+	meta[6] = uint32(uintptr(unsafe.Pointer(&curID)))
+	meta[7] = uint32(uintptr(unsafe.Pointer(&expFlg)))
+	meta[8] = uint32(uintptr(unsafe.Pointer(&errCode)))
+	meta[9] = uint32(uintptr(unsafe.Pointer(&key[0])))
+	meta[10] = uint32(uintptr(unsafe.Pointer(&val[0])))
 	return uint32(uintptr(unsafe.Pointer(&meta[0])))
 }
 
@@ -54,26 +52,6 @@ func setVal(v []byte) {
 func getVal() []byte {
 	return val[:valLen]
 }
-
-//go:wasm-module lmdb
-//export EnvOpen
-func lmdbEnvOpen()
-
-//go:wasm-module lmdb
-//export EnvStat
-func lmdbEnvStat()
-
-//go:wasm-module lmdb
-//export EnvSync
-func lmdbEnvSync()
-
-//go:wasm-module lmdb
-//export EnvClose
-func lmdbEnvClose()
-
-//go:wasm-module lmdb
-//export EnvDelete
-func lmdbEnvDelete()
 
 //go:wasm-module lmdb
 //export Begin

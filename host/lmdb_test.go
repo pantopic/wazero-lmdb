@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
@@ -17,21 +18,21 @@ import (
 var testwasm []byte
 
 func TestModule(t *testing.T) {
-	ctx := context.Background()
+	var (
+		optEnv uint = lmdb.NoMemInit | lmdb.NoReadahead | lmdb.NoSync | lmdb.NoMetaSync | lmdb.NoLock | lmdb.NoSubdir | lmdb.Create
+		path        = "/tmp/pantopic/module-lmdb"
+		ctx         = context.Background()
+		out         = &bytes.Buffer{}
+	)
 	r := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().
 		WithMemoryLimitPages(256).
 		WithMemoryCapacityFromMax(true))
 	wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
-	out := &bytes.Buffer{}
-
-	path := "/tmp/pantopic/module-lmdb"
 	os.RemoveAll(path)
 	module := New(
 		WithCtxKeyMeta(`test_meta_key`),
-		WithCtxKeyPath(`test_path_key`),
-		WithCtxKeyMaxDBs(`test_max_dbs`),
-		WithCtxKeyMapSize(`test_map_size`),
+		WithCtxKeyEnv(`test_path_env`),
 	)
 	module.Register(ctx, r)
 
@@ -55,24 +56,28 @@ func TestModule(t *testing.T) {
 		t.Errorf("incorrect maximum key length: %#v", meta)
 	}
 
-	tenantID := 1
-	ctx = context.WithValue(ctx, module.ctxKeyPath, fmt.Sprintf(`%s/local/%016x`, path, tenantID))
-	ctx = context.WithValue(ctx, module.ctxKeyMaxDBs, 256)
-	ctx = context.WithValue(ctx, module.ctxKeyMapSize, int64(16<<20))
+	env, err := lmdb.NewEnv()
+	if err != nil {
+		t.Fatalf(`%v`, err)
+	}
+	if err = env.SetMapSize(int64(16 << 20)); err != nil {
+		t.Fatalf(`%v`, err)
+	}
+	if err = env.SetMaxDBs(256); err != nil {
+		t.Fatalf(`%v`, err)
+	}
+	path = fmt.Sprintf(`%s/local/%016x`, path, 123)
+	if err = os.MkdirAll(path, 0755); err != nil {
+		t.Fatalf(`%v`, err)
+	}
+	if err = env.Open(fmt.Sprintf(`%s/%s.mdb`, path, `data`), optEnv|lmdb.Create, 0700); err != nil {
+		t.Fatalf(`%v`, err)
+	}
+	ctx = context.WithValue(ctx, module.ctxKeyEnv, env)
 
 	call := func(cmd string, params ...uint64) {
 		if _, err := mod.ExportedFunction(cmd).Call(ctx, params...); err != nil {
 			t.Fatalf("%v\n%s", err, out.String())
-		}
-	}
-	stat := func(n uint64) {
-		stack, err := mod.ExportedFunction("stat").Call(ctx)
-		if err != nil {
-			t.Fatalf(`%v`, err)
-		}
-		buf, _ := mod.Memory().Read(uint32(stack[0]>>32), uint32(stack[0]))
-		if statFromBytes(buf).Entries != n {
-			t.Fatalf("Wrong number of entries: %v", string(buf))
 		}
 	}
 	dbstat := func(n uint64) {
@@ -85,11 +90,6 @@ func TestModule(t *testing.T) {
 			t.Fatalf("Wrong number of entries: %+v", statFromBytes(buf))
 		}
 	}
-	t.Run("open", func(t *testing.T) {
-		call("open")
-		stat(0)
-	})
-
 	t.Run("set", func(t *testing.T) {
 		t.Run("commit", func(t *testing.T) {
 			call("begin")
@@ -97,7 +97,6 @@ func TestModule(t *testing.T) {
 			dbstat(0)
 			call("set")
 			call("commit")
-			stat(1)
 		})
 		t.Run("abort", func(t *testing.T) {
 			call("begin")
@@ -106,11 +105,7 @@ func TestModule(t *testing.T) {
 			call("getmissing")
 			call("set2")
 			call("abort")
-			stat(1)
 		})
-	})
-	t.Run("sync", func(t *testing.T) {
-		call("sync")
 	})
 	t.Run("get", func(t *testing.T) {
 		call("begin")
@@ -118,7 +113,6 @@ func TestModule(t *testing.T) {
 		call("set2")
 		call("get2")
 		call("commit")
-		stat(1)
 		call("beginread")
 		dbstat(2)
 		call("get2")
@@ -178,22 +172,10 @@ func TestModule(t *testing.T) {
 		dbstat(1)
 		call("commit")
 	})
-	t.Run("env", func(t *testing.T) {
-		call("close")
-		call("open")
-		call("open")
-	})
-	call("open")
 	module.Reset(ctx)
-	module.TenantSync(ctx)
-	module.TenantClose(ctx)
-	module.TenantDelete(ctx)
-	module.TenantSync(ctx)
-	module.TenantClose(ctx)
-	module.TenantDelete(ctx)
+	call("clear")
 	var n uint64 = 10_000
 	t.Run("stress", func(t *testing.T) {
-		call("open")
 		start := time.Now()
 		call("stress", n)
 		t.Logf(`Stress: %v per Put`, time.Since(start)/time.Duration(n))
@@ -202,7 +184,6 @@ func TestModule(t *testing.T) {
 		call("commit")
 	})
 	t.Run("dbdrop", func(t *testing.T) {
-		stat(1)
 		call("begin")
 		call("dbdrop")
 		call("commit")
@@ -213,16 +194,6 @@ func TestModule(t *testing.T) {
 		call("commit")
 		call("beginread")
 		dbstat(1)
-	})
-	t.Run("close", func(t *testing.T) {
-		call("close")
-		call("close")
-	})
-	t.Run("delete", func(t *testing.T) {
-		call("open")
-		call("delete")
-		call("delete")
-		call("open")
 	})
 	module.Stop()
 }

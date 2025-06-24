@@ -43,60 +43,7 @@ const (
 
 type DBI uint32
 
-// Env represents an LMDB environment (database file)
-// See https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb#Env
-type Env struct {
-	id uint32
-}
-
-func Open(name string, flags uint32) (env *Env, err error) {
-	setKey([]byte(name))
-	expFlg = flags
-	lmdbEnvOpen()
-	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
-		return
-	}
-	env = &Env{envID}
-	return
-}
-
-func (e *Env) Sync() (err error) {
-	envID = e.id
-	lmdbEnvSync()
-	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
-	}
-	return
-}
-
-func (e *Env) Stat() (s *Stat, err error) {
-	envID = e.id
-	lmdbEnvStat()
-	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
-		return
-	}
-	s = stat.from(getVal())
-	return
-}
-
-func (e *Env) Close() (err error) {
-	envID = e.id
-	lmdbEnvClose()
-	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
-	}
-	return
-}
-
-func (e *Env) Delete() {
-	envID = e.id
-	lmdbEnvDelete()
-}
-
-func (e *Env) BeginTxn(parent *Txn, flags uint32) (txn *Txn, err error) {
-	envID = e.id
+func BeginTxn(parent *Txn, flags uint32) (txn *Txn, err error) {
 	if parent != nil {
 		txnID = parent.id
 	} else {
@@ -108,12 +55,12 @@ func (e *Env) BeginTxn(parent *Txn, flags uint32) (txn *Txn, err error) {
 		err = opError{Errno(errCode), getVal()}
 		return
 	}
-	txn = &Txn{e, txnID}
+	txn = &Txn{txnID}
 	return
 }
 
-func (e *Env) View(fn func(*Txn) error) (err error) {
-	txn, err := e.BeginTxn(nil, Readonly)
+func View(fn func(*Txn) error) (err error) {
+	txn, err := BeginTxn(nil, Readonly)
 	if err != nil {
 		return
 	}
@@ -122,8 +69,8 @@ func (e *Env) View(fn func(*Txn) error) (err error) {
 	return
 }
 
-func (e *Env) Update(fn func(*Txn) error) (err error) {
-	txn, err := e.BeginTxn(nil, 0)
+func Update(fn func(*Txn) error) (err error) {
+	txn, err := BeginTxn(nil, 0)
 	if err != nil {
 		return
 	}
@@ -138,8 +85,7 @@ func (e *Env) Update(fn func(*Txn) error) (err error) {
 // Txn represents an LMDB transaction
 // See https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb#Txn
 type Txn struct {
-	env *Env
-	id  uint32
+	id uint32
 }
 
 func (t *Txn) CreateDBI(name string, flags uint32) (dbi DBI, err error) {
@@ -246,7 +192,7 @@ func (t *Txn) Abort() {
 }
 
 func (t *Txn) Sub(fn func(*Txn) error) (err error) {
-	txn, err := t.env.BeginTxn(t, 0)
+	txn, err := BeginTxn(t, 0)
 	if err != nil {
 		return
 	}
