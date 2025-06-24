@@ -29,9 +29,9 @@ jobs:
       run: cd host && go test . -coverprofile coverage.out
 
     - name: Update Host coverage badge
-      uses: kevburnsjr/go-coverage-report@base-dir
+      uses: ncruces/go-coverage-report@base-dir
       with:
         coverage-file: coverage.out
-        base-dir: host
+        module-dir: host
         output-dir: host
       continue-on-error: true
