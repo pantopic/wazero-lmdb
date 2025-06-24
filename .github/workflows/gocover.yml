@@ -29,7 +29,7 @@ jobs:
       run: cd host && go test . -coverprofile coverage.out
 
     - name: Update Host coverage badge
-      uses: ncruces/go-coverage-report@base-dir
+      uses: ncruces/go-coverage-report@main
       with:
         coverage-file: coverage.out
         module-dir: host
