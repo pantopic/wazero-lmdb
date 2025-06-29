@@ -37,7 +37,6 @@ type meta struct {
 	ptrErr    uint32
 	ptrKey    uint32
 	ptrVal    uint32
-	env       *lmdb.Env
 	txn       map[uint32]*lmdb.Txn
 	cursor    map[uint32]*lmdb.Cursor
 	txnID     uint32
@@ -47,6 +46,7 @@ type meta struct {
 type module struct {
 	sync.RWMutex
 
+	module     api.Module
 	ctxKeyMeta string
 	ctxKeyEnv  string
 }
@@ -85,13 +85,8 @@ func (p *module) InitContext(ctx context.Context, m api.Module) (context.Context
 	return context.WithValue(ctx, p.ctxKeyMeta, meta), nil
 }
 
-func (p *module) Register(ctx context.Context, r wazero.Runtime) {
+func (p *module) Register(ctx context.Context, r wazero.Runtime) (err error) {
 	builder := r.NewHostModuleBuilder("lmdb")
-	defer func() {
-		if _, err := builder.Instantiate(ctx); err != nil {
-			panic(err)
-		}
-	}()
 	register := func(name string, fn func(ctx context.Context, m api.Module, stack []uint64)) {
 		builder = builder.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(fn), nil, nil).Export(name)
 	}
@@ -177,7 +172,7 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 		case func(*lmdb.Env) (*lmdb.Stat, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				stat, err := fn(p.env(ctx, m, meta))
+				stat, err := fn(p.env(ctx))
 				if writeError(m, meta, err) {
 					return
 				}
@@ -187,7 +182,7 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 		case func(*lmdb.Env) error:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
-				err := fn(p.env(ctx, m, meta))
+				err := fn(p.env(ctx))
 				writeError(m, meta, err)
 			})
 		case func(*lmdb.Txn, string, uint32) (lmdb.DBI, error):
@@ -282,7 +277,7 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 				if parentID > 0 {
 					parent = meta.txn[parentID]
 				}
-				txn, err := fn(p.env(ctx, m, meta), parent, flags(m, meta))
+				txn, err := fn(p.env(ctx), parent, flags(m, meta))
 				if writeError(m, meta, err) {
 					return
 				}
@@ -307,6 +302,8 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) {
 			log.Panicf("Method signature implementation missing: %#v", fn)
 		}
 	}
+	p.module, err = builder.Instantiate(ctx)
+	return
 }
 
 func (p *module) Reset(ctx context.Context) {
@@ -327,7 +324,7 @@ func (p *module) Stop() (err error) {
 	return
 }
 
-func (p *module) env(ctx context.Context, m api.Module, meta *meta) *lmdb.Env {
+func (p *module) env(ctx context.Context) *lmdb.Env {
 	return get[*lmdb.Env](ctx, p.ctxKeyEnv)
 }
 

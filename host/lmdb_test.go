@@ -30,11 +30,11 @@ func TestModule(t *testing.T) {
 	wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
 	os.RemoveAll(path)
-	module := New(
+	hostModule := New(
 		WithCtxKeyMeta(`test_meta_key`),
 		WithCtxKeyEnv(`test_path_env`),
 	)
-	module.Register(ctx, r)
+	hostModule.Register(ctx, r)
 
 	compiled, err := r.CompileModule(ctx, testwasm)
 	if err != nil {
@@ -47,11 +47,11 @@ func TestModule(t *testing.T) {
 		return
 	}
 
-	ctx, err = module.InitContext(ctx, mod)
+	ctx, err = hostModule.InitContext(ctx, mod)
 	if err != nil {
 		t.Fatalf(`%v`, err)
 	}
-	meta := get[*meta](ctx, module.ctxKeyMeta)
+	meta := get[*meta](ctx, hostModule.ctxKeyMeta)
 	if readUint32(mod, meta.ptrKeyMax) != 511 {
 		t.Errorf("incorrect maximum key length: %#v", meta)
 	}
@@ -73,7 +73,7 @@ func TestModule(t *testing.T) {
 	if err = env.Open(fmt.Sprintf(`%s/%s.mdb`, path, `data`), optEnv|lmdb.Create, 0700); err != nil {
 		t.Fatalf(`%v`, err)
 	}
-	ctx = context.WithValue(ctx, module.ctxKeyEnv, env)
+	ctx = context.WithValue(ctx, hostModule.ctxKeyEnv, env)
 
 	call := func(cmd string, params ...uint64) {
 		if _, err := mod.ExportedFunction(cmd).Call(ctx, params...); err != nil {
@@ -172,7 +172,7 @@ func TestModule(t *testing.T) {
 		dbstat(1)
 		call("commit")
 	})
-	module.Reset(ctx)
+	hostModule.Reset(ctx)
 	call("clear")
 	var n uint64 = 10_000
 	t.Run("stress", func(t *testing.T) {
@@ -195,5 +195,5 @@ func TestModule(t *testing.T) {
 		call("beginread")
 		dbstat(1)
 	})
-	module.Stop()
+	hostModule.Stop()
 }
