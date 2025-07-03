@@ -25,8 +25,7 @@ func TestModule(t *testing.T) {
 		out         = &bytes.Buffer{}
 	)
 	r := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().
-		WithMemoryLimitPages(256).
-		WithMemoryCapacityFromMax(true))
+		WithMemoryLimitPages(64)) // 4 MB
 	wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
 	os.RemoveAll(path)
@@ -60,7 +59,7 @@ func TestModule(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`%v`, err)
 	}
-	if err = env.SetMapSize(int64(16 << 20)); err != nil {
+	if err = env.SetMapSize(int64(16 << 30)); err != nil {
 		t.Fatalf(`%v`, err)
 	}
 	if err = env.SetMaxDBs(256); err != nil {
@@ -174,13 +173,34 @@ func TestModule(t *testing.T) {
 	})
 	hostModule.Reset(ctx)
 	call("clear")
-	var n uint64 = 10_000
+	var n uint64 = 1_000_000
 	t.Run("stress", func(t *testing.T) {
 		start := time.Now()
 		call("stress", n)
 		t.Logf(`Stress: %v per Put`, time.Since(start)/time.Duration(n))
 		call("begin")
 		dbstat(n)
+		call("commit")
+	})
+	t.Run("stress2", func(t *testing.T) {
+		stack, err := mod.ExportedFunction("valptrs2").Call(ctx)
+		if err != nil {
+			t.Fatalf(`%v`, err)
+		}
+		k, _ := mod.Memory().Read(uint32(stack[0]>>32), 16)
+		v, _ := mod.Memory().Read(uint32(stack[0]), 16)
+		setval := mod.ExportedFunction("setval")
+		start := time.Now()
+		call("begin")
+		for i := range n {
+			copy(k, fmt.Sprintf(`%016x`, i+5e15))
+			copy(v, fmt.Sprintf(`%016x`, n-i+5e15))
+			setval.Call(ctx)
+		}
+		call("commit")
+		t.Logf(`Stress 2: %v per Put`, time.Since(start)/time.Duration(n))
+		call("begin")
+		dbstat(n * 2)
 		call("commit")
 	})
 	t.Run("dbdrop", func(t *testing.T) {

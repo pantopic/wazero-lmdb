@@ -1,8 +1,8 @@
 package main
 
 import (
+	"encoding/binary"
 	"errors"
-	"strconv"
 	"unsafe"
 
 	"github.com/pantopic/wazero-lmdb/lmdb-go"
@@ -14,6 +14,8 @@ var txn *lmdb.Txn
 var cur *lmdb.Cursor
 var dbi lmdb.DBI
 var err error
+var k = make([]byte, 16)
+var v = make([]byte, 16)
 
 //export begin
 func begin() {
@@ -215,9 +217,11 @@ func stress(limit uint32) {
 	if dbi, err = txn.OpenDBI("test", lmdb.Create); err != nil {
 		panic(err)
 	}
-	n := int64(limit)
+	n := uint64(limit)
 	for i := range n {
-		if err := txn.Put(dbi, []byte(strconv.FormatInt(i+1e15, 16)), []byte(strconv.FormatInt(n-i+1e15, 16)), 0); err != nil {
+		binary.LittleEndian.PutUint64(k, i+1e15)
+		binary.LittleEndian.PutUint64(v, n-i+1e15)
+		if err := txn.Put(dbi, k, v, 0); err != nil {
 			panic(err)
 		}
 	}
@@ -305,6 +309,18 @@ func cursorclose() {
 	cur.Close()
 }
 
+//export valptrs2
+func valptrs2() uint64 {
+	return uint64(uintptr(unsafe.Pointer(&k[0])))<<32 + uint64(uintptr(unsafe.Pointer(&v[0])))
+}
+
+//export setval
+func setval() {
+	if err := txn.Put(dbi, k, v, 0); err != nil {
+		panic(err)
+	}
+}
+
 func sliceToPtr(b []byte) uint64 {
 	return uint64(uintptr(unsafe.Pointer(&b[0])))<<32 + uint64(len(b))
 }
@@ -338,3 +354,5 @@ var _ = sub
 var _ = subabort
 var _ = subdel
 var _ = clear
+var _ = setval
+var _ = valptrs2
