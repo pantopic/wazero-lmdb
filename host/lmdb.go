@@ -25,18 +25,17 @@ var (
 )
 
 type meta struct {
-	ptrKeyMax uint32
-	ptrValMax uint32
+	ptrKeyCap uint32
 	ptrKeyLen uint32
+	ptrKey    uint32
+	ptrValCap uint32
 	ptrValLen uint32
-	ptrEnv    uint32
+	ptrVal    uint32
 	ptrTxn    uint32
 	ptrDbi    uint32
 	ptrCur    uint32
 	ptrFlg    uint32
 	ptrErr    uint32
-	ptrKey    uint32
-	ptrVal    uint32
 	txn       map[uint32]*lmdb.Txn
 	cursor    map[uint32]*lmdb.Cursor
 	txnID     uint32
@@ -61,8 +60,12 @@ func New(opts ...Option) *module {
 	return p
 }
 
+func (p *module) Uri() string {
+	return "github.com/pantopic/wazero-lmdb"
+}
+
 func (p *module) InitContext(ctx context.Context, m api.Module) (context.Context, error) {
-	stack, err := m.ExportedFunction(`lmdb`).Call(ctx)
+	stack, err := m.ExportedFunction(`__lmdb`).Call(ctx)
 	if err != nil {
 		return ctx, err
 	}
@@ -71,17 +74,21 @@ func (p *module) InitContext(ctx context.Context, m api.Module) (context.Context
 		cursor: make(map[uint32]*lmdb.Cursor),
 	}
 	ptr := uint32(stack[0])
-	meta.ptrKeyMax, _ = m.Memory().ReadUint32Le(ptr)
-	meta.ptrValMax, _ = m.Memory().ReadUint32Le(ptr + 4)
-	meta.ptrKeyLen, _ = m.Memory().ReadUint32Le(ptr + 8)
-	meta.ptrValLen, _ = m.Memory().ReadUint32Le(ptr + 12)
-	meta.ptrTxn, _ = m.Memory().ReadUint32Le(ptr + 16)
-	meta.ptrDbi, _ = m.Memory().ReadUint32Le(ptr + 20)
-	meta.ptrCur, _ = m.Memory().ReadUint32Le(ptr + 24)
-	meta.ptrFlg, _ = m.Memory().ReadUint32Le(ptr + 28)
-	meta.ptrErr, _ = m.Memory().ReadUint32Le(ptr + 32)
-	meta.ptrKey, _ = m.Memory().ReadUint32Le(ptr + 36)
-	meta.ptrVal, _ = m.Memory().ReadUint32Le(ptr + 40)
+	for i, v := range []*uint32{
+		&meta.ptrKeyCap,
+		&meta.ptrKeyLen,
+		&meta.ptrKey,
+		&meta.ptrValCap,
+		&meta.ptrValLen,
+		&meta.ptrVal,
+		&meta.ptrTxn,
+		&meta.ptrDbi,
+		&meta.ptrCur,
+		&meta.ptrFlg,
+		&meta.ptrErr,
+	} {
+		*v = readUint32(m, ptr+uint32(4*i))
+	}
 	return context.WithValue(ctx, p.ctxKeyMeta, meta), nil
 }
 
@@ -154,21 +161,6 @@ func (p *module) Register(ctx context.Context, r wazero.Runtime) (err error) {
 		},
 	} {
 		switch fn := fn.(type) {
-		case func(context.Context, string, uint32) (uint32, error):
-			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, p.ctxKeyMeta)
-				envID, err := fn(ctx, string(key(m, meta)), flags(m, meta))
-				if writeError(m, meta, err) {
-					return
-				}
-				writeUint32(m, meta.ptrEnv, uint32(envID))
-			})
-		case func(context.Context, uint32) error:
-			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, p.ctxKeyMeta)
-				err := fn(ctx, envID(m, meta))
-				writeError(m, meta, err)
-			})
 		case func(*lmdb.Env) (*lmdb.Stat, error):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
 				meta := get[*meta](ctx, p.ctxKeyMeta)
@@ -337,23 +329,19 @@ func get[T any](ctx context.Context, key string) T {
 }
 
 func key(m api.Module, meta *meta) []byte {
-	return read(m, meta.ptrKey, meta.ptrKeyLen, meta.ptrKeyMax)
+	return read(m, meta.ptrKey, meta.ptrKeyLen, meta.ptrKeyCap)
 }
 
 func val(m api.Module, meta *meta) []byte {
-	return read(m, meta.ptrVal, meta.ptrValLen, meta.ptrValMax)
+	return read(m, meta.ptrVal, meta.ptrValLen, meta.ptrValCap)
 }
 
 func keyBuf(m api.Module, meta *meta) []byte {
-	return read(m, meta.ptrKey, 0, meta.ptrKeyMax)
+	return read(m, meta.ptrKey, 0, meta.ptrKeyCap)
 }
 
 func valBuf(m api.Module, meta *meta) []byte {
-	return read(m, meta.ptrVal, 0, meta.ptrValMax)
-}
-
-func envID(m api.Module, meta *meta) uint32 {
-	return readUint32(m, meta.ptrEnv)
+	return read(m, meta.ptrVal, 0, meta.ptrValCap)
 }
 
 func dbi(m api.Module, meta *meta) lmdb.DBI {
@@ -373,8 +361,8 @@ func cur(m api.Module, meta *meta) (cur *lmdb.Cursor) {
 	return
 }
 
-func read(m api.Module, ptrData, ptrLen, ptrMax uint32) (buf []byte) {
-	buf, ok := m.Memory().Read(ptrData, readUint32(m, ptrMax))
+func read(m api.Module, ptrData, ptrLen, ptrCap uint32) (buf []byte) {
+	buf, ok := m.Memory().Read(ptrData, readUint32(m, ptrCap))
 	if !ok {
 		log.Panicf("Memory.Read(%d, %d) out of range", ptrData, ptrLen)
 	}

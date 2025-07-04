@@ -5,8 +5,8 @@ import (
 )
 
 var (
-	maxKey  uint32 = 511
-	maxVal  uint32 = 1.5 * 1024 * 1024
+	keyCap  uint32 = 511
+	valCap  uint32 = 1.5 * 1024 * 1024
 	keyLen  uint32
 	valLen  uint32
 	txnID   uint32
@@ -14,24 +14,24 @@ var (
 	curID   uint32
 	expFlg  uint32
 	errCode uint32
-	key     = make([]byte, int(maxKey))
-	val     = make([]byte, int(maxVal))
+	key     = make([]byte, int(keyCap))
+	val     = make([]byte, int(valCap))
 	meta    = make([]uint32, 11)
 )
 
-//export lmdb
-func lmdb() (res uint32) {
-	meta[0] = uint32(uintptr(unsafe.Pointer(&maxKey)))
-	meta[1] = uint32(uintptr(unsafe.Pointer(&maxVal)))
-	meta[2] = uint32(uintptr(unsafe.Pointer(&keyLen)))
-	meta[3] = uint32(uintptr(unsafe.Pointer(&valLen)))
-	meta[4] = uint32(uintptr(unsafe.Pointer(&txnID)))
-	meta[5] = uint32(uintptr(unsafe.Pointer(&expDbi)))
-	meta[6] = uint32(uintptr(unsafe.Pointer(&curID)))
-	meta[7] = uint32(uintptr(unsafe.Pointer(&expFlg)))
-	meta[8] = uint32(uintptr(unsafe.Pointer(&errCode)))
-	meta[9] = uint32(uintptr(unsafe.Pointer(&key[0])))
-	meta[10] = uint32(uintptr(unsafe.Pointer(&val[0])))
+//export __lmdb
+func __lmdb() (res uint32) {
+	meta[0] = uint32(uintptr(unsafe.Pointer(&keyCap)))
+	meta[1] = uint32(uintptr(unsafe.Pointer(&keyLen)))
+	meta[2] = uint32(uintptr(unsafe.Pointer(&key[0])))
+	meta[3] = uint32(uintptr(unsafe.Pointer(&valCap)))
+	meta[4] = uint32(uintptr(unsafe.Pointer(&valLen)))
+	meta[5] = uint32(uintptr(unsafe.Pointer(&val[0])))
+	meta[6] = uint32(uintptr(unsafe.Pointer(&txnID)))
+	meta[7] = uint32(uintptr(unsafe.Pointer(&expDbi)))
+	meta[8] = uint32(uintptr(unsafe.Pointer(&curID)))
+	meta[9] = uint32(uintptr(unsafe.Pointer(&expFlg)))
+	meta[10] = uint32(uintptr(unsafe.Pointer(&errCode)))
 	return uint32(uintptr(unsafe.Pointer(&meta[0])))
 }
 
@@ -110,4 +110,4 @@ func lmdbCursorDel()
 func lmdbCursorClose()
 
 // Fix for lint rule `unusedfunc`
-var _ = lmdb
+var _ = __lmdb

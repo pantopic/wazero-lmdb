@@ -51,8 +51,8 @@ func TestModule(t *testing.T) {
 		t.Fatalf(`%v`, err)
 	}
 	meta := get[*meta](ctx, hostModule.ctxKeyMeta)
-	if readUint32(mod, meta.ptrKeyMax) != 511 {
-		t.Errorf("incorrect maximum key length: %#v", meta)
+	if v := readUint32(mod, meta.ptrKeyCap); v != 511 {
+		t.Errorf("incorrect maximum key length: %#v %d", meta, v)
 	}
 
 	env, err := lmdb.NewEnv()
