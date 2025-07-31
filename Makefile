@@ -1,9 +1,3 @@
-dev:
-	@go build -ldflags="-s -w" -o _dist/pantopic && cd cmd/standalone && docker compose up --build
-
-build:
-	@go build -ldflags="-s -w" -o _dist/pantopic
-
 wasm:
 	@cd test && tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=leaking -scheduler=none -o ../host/test.wasm module.go
 

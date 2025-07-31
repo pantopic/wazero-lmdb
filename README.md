@@ -68,7 +68,7 @@ func get() uint64 {
 }
 ```
 
-The [guest SDK](https://pkg.go.dev/github.com/pantopic/wazero-lmdb/lmdb) has no dependencies outside the Go std lib.
+The [guest SDK](https://pkg.go.dev/github.com/pantopic/wazero-lmdb/lmdb-go) has no dependencies outside the Go std lib.
 The [ABI](lmdb/abi.go) is ~130 lines of code and the [SDK](lmdb/sdk.go) is ~400 lines of code so it should be simple
 to port this guest SDK if you want to use the Host Module from WASM modules written in other guest languages
 (i.e. Rust). Contributions welcome.

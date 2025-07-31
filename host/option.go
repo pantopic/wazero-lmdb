@@ -1,14 +1,14 @@
 package wazero_lmdb
 
-type Option func(*module)
+type Option func(*hostModule)
 
 func WithCtxKeyMeta(key string) Option {
-	return func(p *module) {
-		p.ctxKeyMeta = key
+	return func(h *hostModule) {
+		h.ctxKeyMeta = key
 	}
 }
 func WithCtxKeyEnv(key string) Option {
-	return func(p *module) {
-		p.ctxKeyEnv = key
+	return func(h *hostModule) {
+		h.ctxKeyEnv = key
 	}
 }

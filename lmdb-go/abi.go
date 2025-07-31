@@ -53,59 +53,59 @@ func getVal() []byte {
 	return val[:valLen]
 }
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export Begin
 func lmdbBegin()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export DbOpen
 func lmdbDbOpen()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export DbStat
 func lmdbDbStat()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export DbDrop
 func lmdbDbDrop()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export Commit
 func lmdbCommit()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export Abort
 func lmdbAbort()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export Put
 func lmdbPut()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export Get
 func lmdbGet()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export Del
 func lmdbDel()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export CursorOpen
 func lmdbCursorOpen()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export CursorGet
 func lmdbCursorGet()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export CursorPut
 func lmdbCursorPut()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export CursorDel
 func lmdbCursorDel()
 
-//go:wasm-module lmdb
+//go:wasm-module pantopic/wazero-lmdb
 //export CursorClose
 func lmdbCursorClose()
 
