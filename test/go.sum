@@ -1,4 +1,2 @@
-github.com/pantopic/wazero-lmdb/lmdb-go v0.0.0-20250622202852-c752ec54190b h1:GYuC3TlSga7pWaXuqsWB1xNHTwQZw0lZKjAKeGebZCY=
-github.com/pantopic/wazero-lmdb/lmdb-go v0.0.0-20250622202852-c752ec54190b/go.mod h1:amVhGT5hhHkRD/UeD2D2UATGJvCxLw/gbxqbSWa/eGc=
-github.com/pantopic/wazero-lmdb/lmdb-go v0.0.0-20250622232028-2931b0f9f669 h1:1AvqgrRimBmD+ZogwfY7fHenq68L9Wem4zOBEBCsSCc=
-github.com/pantopic/wazero-lmdb/lmdb-go v0.0.0-20250622232028-2931b0f9f669/go.mod h1:amVhGT5hhHkRD/UeD2D2UATGJvCxLw/gbxqbSWa/eGc=
+github.com/pantopic/wazero-lmdb/sdk-go v0.0.8 h1:tVwvEVzdcLlqGs7iML6x10agkZ02cD6NiOSAwNVd6V4=
+github.com/pantopic/wazero-lmdb/sdk-go v0.0.8/go.mod h1:yosGZHWYan8LywlonmYKPxtzdLRTII6GOPDelUExr3o=
