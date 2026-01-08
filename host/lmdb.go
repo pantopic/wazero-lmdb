@@ -95,7 +95,7 @@ func (h *hostModule) InitContext(ctx context.Context, m api.Module) (context.Con
 	return context.WithValue(ctx, h.ctxKeyMeta, meta), nil
 }
 
-func (h *hostModule) ContextCopy(src, dst context.Context) context.Context {
+func (h *hostModule) ContextCopy(dst, src context.Context) context.Context {
 	dst = context.WithValue(dst, h.ctxKeyMeta, get[*meta](src, h.ctxKeyMeta))
 	return dst
 }
