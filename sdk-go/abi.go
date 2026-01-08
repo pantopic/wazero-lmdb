@@ -5,22 +5,24 @@ import (
 )
 
 var (
+	meta           = make([]uint32, 11)
 	keyCap  uint32 = 511
-	valCap  uint32 = 1.5 * 1024 * 1024
 	keyLen  uint32
+	key     []byte
+	valCap  uint32 = 1.5 * 1024 * 1024
 	valLen  uint32
+	val     []byte
 	txnID   uint32
 	expDbi  DBI
 	curID   uint32
 	expFlg  uint32
 	errCode uint32
-	key     = make([]byte, int(keyCap))
-	val     = make([]byte, int(valCap))
-	meta    = make([]uint32, 11)
 )
 
 //export __lmdb
 func __lmdb() (res uint32) {
+	key = make([]byte, int(keyCap))
+	val = make([]byte, int(valCap))
 	meta[0] = uint32(uintptr(unsafe.Pointer(&keyCap)))
 	meta[1] = uint32(uintptr(unsafe.Pointer(&keyLen)))
 	meta[2] = uint32(uintptr(unsafe.Pointer(&key[0])))
@@ -54,59 +56,59 @@ func getVal() []byte {
 }
 
 //go:wasm-module pantopic/wazero-lmdb
-//export Begin
+//export __lmdb_begin
 func lmdbBegin()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export DbOpen
+//export __lmdb_db_open
 func lmdbDbOpen()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export DbStat
+//export __lmdb_db_stat
 func lmdbDbStat()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export DbDrop
+//export __lmdb_db_drop
 func lmdbDbDrop()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export Commit
+//export __lmdb_commit
 func lmdbCommit()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export Abort
+//export __lmdb_abort
 func lmdbAbort()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export Put
+//export __lmdb_put
 func lmdbPut()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export Get
+//export __lmdb_get
 func lmdbGet()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export Del
+//export __lmdb_del
 func lmdbDel()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export CursorOpen
+//export __lmdb_cursor_open
 func lmdbCursorOpen()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export CursorGet
+//export __lmdb_cursor_get
 func lmdbCursorGet()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export CursorPut
+//export __lmdb_cursor_put
 func lmdbCursorPut()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export CursorDel
+//export __lmdb_cursor_del
 func lmdbCursorDel()
 
 //go:wasm-module pantopic/wazero-lmdb
-//export CursorClose
+//export __lmdb_cursor_close
 func lmdbCursorClose()
 
 // Fix for lint rule `unusedfunc`
