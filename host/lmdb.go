@@ -17,8 +17,8 @@ import (
 const Name = "pantopic/wazero-lmdb"
 
 var (
-	DefaultCtxKeyMeta = `wazero_lmdb_meta_key`
-	DefaultCtxKeyEnv  = `wazero_lmdb_env`
+	DefaultCtxKeyMeta = `__wazero_lmdb_meta_key`
+	DefaultCtxKeyEnv  = `__wazero_lmdb_env`
 
 	dbFlagMask     uint = lmdb.Create | lmdb.DupSort
 	txnFlagMask    uint = lmdb.Readonly
@@ -106,33 +106,33 @@ func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 		builder = builder.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(fn), nil, nil).Export(name)
 	}
 	for name, fn := range map[string]any{
-		"Begin": func(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (txn *lmdb.Txn, err error) {
+		"__lmdb_begin": func(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (txn *lmdb.Txn, err error) {
 			if flags&lmdb.Readonly == 0 {
 				runtime.LockOSThread()
 			}
 			return beginTxn(env, parent, flags)
 		},
-		"Commit": func(txn *lmdb.Txn) error {
+		"__lmdb_commit": func(txn *lmdb.Txn) error {
 			defer runtime.UnlockOSThread()
 			return txn.Commit()
 		},
-		"Abort": func(txn *lmdb.Txn) {
+		"__lmdb_abort": func(txn *lmdb.Txn) {
 			defer runtime.UnlockOSThread()
 			txn.Abort()
 		},
-		"DbOpen": func(txn *lmdb.Txn, name string, flags uint32) (dbi lmdb.DBI, err error) {
+		"__lmdb_db_open": func(txn *lmdb.Txn, name string, flags uint32) (dbi lmdb.DBI, err error) {
 			return txn.OpenDBI(name, uint(flags)&dbFlagMask)
 		},
-		"DbStat": func(txn *lmdb.Txn, dbi lmdb.DBI) (stat *lmdb.Stat, err error) {
+		"__lmdb_db_stat": func(txn *lmdb.Txn, dbi lmdb.DBI) (stat *lmdb.Stat, err error) {
 			return txn.Stat(dbi)
 		},
-		"DbDrop": func(txn *lmdb.Txn, dbi lmdb.DBI) (err error) {
+		"__lmdb_db_drop": func(txn *lmdb.Txn, dbi lmdb.DBI) (err error) {
 			return txn.Drop(dbi, true)
 		},
-		"Put": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte, flags uint32) (err error) {
+		"__lmdb_put": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte, flags uint32) (err error) {
 			return txn.Put(dbi, key, val, uint(flags)&txnPutFlagMask)
 		},
-		"Get": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) ([]byte, error) {
+		"__lmdb_get": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) ([]byte, error) {
 			v, err := txn.Get(dbi, key)
 			if err != nil {
 				return nil, err
@@ -141,13 +141,13 @@ func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 			copy(val, v)
 			return val, nil
 		},
-		"Del": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) (err error) {
+		"__lmdb_del": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) (err error) {
 			return txn.Del(dbi, key, val)
 		},
-		"CursorOpen": func(txn *lmdb.Txn, dbi lmdb.DBI) (cur *lmdb.Cursor, err error) {
+		"__lmdb_cursor_open": func(txn *lmdb.Txn, dbi lmdb.DBI) (cur *lmdb.Cursor, err error) {
 			return txn.OpenCursor(dbi)
 		},
-		"CursorGet": func(cur *lmdb.Cursor, key, val []byte, flags uint32) ([]byte, []byte, error) {
+		"__lmdb_cursor_get": func(cur *lmdb.Cursor, key, val []byte, flags uint32) ([]byte, []byte, error) {
 			k, v, err := cur.Get(key, val, uint(flags)&curGetFlagMask)
 			if err != nil {
 				return nil, nil, err
@@ -158,13 +158,13 @@ func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 			copy(val, v)
 			return key, val, nil
 		},
-		"CursorDel": func(cur *lmdb.Cursor, flags uint32) error {
+		"__lmdb_cursor_del": func(cur *lmdb.Cursor, flags uint32) error {
 			return cur.Del(uint(flags))
 		},
-		"CursorPut": func(cur *lmdb.Cursor, key, val []byte, flags uint32) error {
+		"__lmdb_cursor_put": func(cur *lmdb.Cursor, key, val []byte, flags uint32) error {
 			return cur.Put(key, val, uint(flags)&curPutFlagMask)
 		},
-		"CursorClose": func(cur *lmdb.Cursor) {
+		"__lmdb_cursor_close": func(cur *lmdb.Cursor) {
 			cur.Close()
 		},
 	} {
