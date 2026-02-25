@@ -20,6 +20,7 @@ const (
 )
 
 // LMDB cursor flags
+// https://github.com/PowerDNS/lmdb-go/blob/v1.9.3/lmdb/cursor.go#L16
 const (
 	First uint32 = iota
 	FirstDup
@@ -127,12 +128,12 @@ func (t *Txn) Stat(dbi DBI) (s *Stat, err error) {
 	return
 }
 
-func (t *Txn) Put(dbi DBI, key, val []byte, flags uint32) (err error) {
+func (t *Txn) Put(dbi DBI, k, v []byte, flags uint32) (err error) {
 	txnID = t.id
 	expDbi = dbi
 	expFlg = flags
-	setKey(key)
-	setVal(val)
+	setKey(k)
+	setVal(v)
 	lmdbPut()
 	if errCode > 0 {
 		err = opError{Errno(errCode), getVal()}
@@ -140,24 +141,24 @@ func (t *Txn) Put(dbi DBI, key, val []byte, flags uint32) (err error) {
 	return
 }
 
-func (t *Txn) Get(dbi DBI, key []byte) (val []byte, err error) {
+func (t *Txn) Get(dbi DBI, k []byte) (v []byte, err error) {
 	txnID = t.id
 	expDbi = dbi
-	setKey(key)
+	setKey(k)
 	lmdbGet()
 	if errCode > 0 {
 		err = opError{Errno(errCode), getVal()}
 		return
 	}
-	val = getVal()
+	v = append(v, getVal()...)
 	return
 }
 
-func (t *Txn) Del(dbi DBI, key, val []byte) (err error) {
+func (t *Txn) Del(dbi DBI, k, v []byte) (err error) {
 	txnID = t.id
 	expDbi = dbi
-	setKey(key)
-	setVal(val)
+	setKey(k)
+	setVal(v)
 	lmdbDel()
 	if errCode > 0 {
 		err = opError{Errno(errCode), getVal()}
@@ -210,23 +211,25 @@ type Cursor struct {
 	id uint32
 }
 
-func (c *Cursor) Get(key, val []byte, flags uint32) ([]byte, []byte, error) {
+func (c *Cursor) Get(k, v []byte, flags uint32) (rk []byte, rv []byte, err error) {
 	curID = c.id
 	expFlg = flags
-	setKey(key)
-	setVal(val)
+	setKey(k)
+	setVal(v)
 	lmdbCursorGet()
 	if errCode > 0 {
 		return nil, nil, opError{Errno(errCode), getVal()}
 	}
-	return getKey(), getVal(), nil
+	rk = append(rk, getKey()...)
+	rv = append(rv, getVal()...)
+	return
 }
 
-func (c *Cursor) Put(key, val []byte, flags uint32) (err error) {
+func (c *Cursor) Put(k, v []byte, flags uint32) (err error) {
 	curID = c.id
 	expFlg = flags
-	setKey(key)
-	setVal(val)
+	setKey(k)
+	setVal(v)
 	lmdbCursorPut()
 	if errCode > 0 {
 		err = opError{Errno(errCode), getVal()}

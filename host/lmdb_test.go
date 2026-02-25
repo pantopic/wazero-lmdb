@@ -29,10 +29,7 @@ func TestModule(t *testing.T) {
 	wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
 	os.RemoveAll(path)
-	hostModule := New(
-		WithCtxKeyMeta(`test_meta_key`),
-		WithCtxKeyEnv(`test_path_env`),
-	)
+	hostModule := New()
 	hostModule.Register(ctx, r)
 
 	compiled, err := r.CompileModule(ctx, testwasm)
@@ -50,7 +47,7 @@ func TestModule(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`%v`, err)
 	}
-	meta := get[*meta](ctx, hostModule.ctxKeyMeta)
+	meta := get[*meta](ctx, ctxKeyMeta)
 	if v := readUint32(mod, meta.ptrKeyCap); v != 511 {
 		t.Errorf("incorrect maximum key length: %#v %d", meta, v)
 	}
@@ -72,7 +69,7 @@ func TestModule(t *testing.T) {
 	if err = env.Open(fmt.Sprintf(`%s/%s.mdb`, path, `data`), optEnv|lmdb.Create, 0700); err != nil {
 		t.Fatalf(`%v`, err)
 	}
-	ctx = context.WithValue(ctx, hostModule.ctxKeyEnv, env)
+	ctx = context.WithValue(ctx, ctxKeyEnv, env)
 
 	call := func(cmd string, params ...uint64) {
 		if _, err := mod.ExportedFunction(cmd).Call(ctx, params...); err != nil {

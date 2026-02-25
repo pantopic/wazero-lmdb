@@ -5,13 +5,16 @@ import (
 )
 
 var (
-	meta           = make([]uint32, 11)
-	keyCap  uint32 = 511
-	keyLen  uint32
-	key     []byte
-	valCap  uint32 = 1.5 * 1024 * 1024
-	valLen  uint32
-	val     []byte
+	meta = make([]uint32, 11)
+
+	keyCap uint32 = 511
+	keyLen uint32
+	key    = make([]byte, int(keyCap))
+
+	valCap uint32 = 1.5 * 1024 * 1024
+	valLen uint32
+	val    = make([]byte, int(valCap))
+
 	txnID   uint32
 	expDbi  DBI
 	curID   uint32
@@ -21,8 +24,6 @@ var (
 
 //export __lmdb
 func __lmdb() (res uint32) {
-	key = make([]byte, int(keyCap))
-	val = make([]byte, int(valCap))
 	meta[0] = uint32(uintptr(unsafe.Pointer(&keyCap)))
 	meta[1] = uint32(uintptr(unsafe.Pointer(&keyLen)))
 	meta[2] = uint32(uintptr(unsafe.Pointer(&key[0])))
