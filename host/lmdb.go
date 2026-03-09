@@ -24,12 +24,6 @@ var (
 	ctxKeyEnv  = Name + `/env`
 )
 
-func ContextCopy(dst, src context.Context) context.Context {
-	dst = context.WithValue(dst, ctxKeyMeta, get[*meta](src, ctxKeyMeta))
-	dst = context.WithValue(dst, ctxKeyEnv, get[*lmdb.Env](src, ctxKeyEnv))
-	return dst
-}
-
 var (
 	dbFlagMask     uint = lmdb.Create | lmdb.DupSort
 	txnFlagMask    uint = lmdb.Readonly
@@ -101,6 +95,12 @@ func (h *hostModule) InitContext(ctx context.Context, m api.Module) (context.Con
 		*v = readUint32(m, ptr+uint32(4*i))
 	}
 	return context.WithValue(ctx, ctxKeyMeta, meta), nil
+}
+
+func (h *hostModule) ContextCopy(dst, src context.Context) context.Context {
+	dst = context.WithValue(dst, ctxKeyMeta, get[*meta](src, ctxKeyMeta))
+	dst = context.WithValue(dst, ctxKeyEnv, get[*lmdb.Env](src, ctxKeyEnv))
+	return dst
 }
 
 func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error) {
