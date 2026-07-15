@@ -335,10 +335,6 @@ func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 	return
 }
 
-func (p *hostModule) RegisterEnv(ctx context.Context, env *lmdb.Env) context.Context {
-	return context.WithValue(ctx, ctxKeyEnv, env)
-}
-
 func (h *hostModule) Reset(ctx context.Context) {
 	meta := get[*meta](ctx, ctxKeyMeta)
 	for _, txn := range meta.txn.All() {
