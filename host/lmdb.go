@@ -113,8 +113,9 @@ func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 			if flags&lmdb.Readonly == 0 {
 				runtime.LockOSThread()
 			}
-			runtime.LockOSThread()
-			return beginTxn(env, parent, flags)
+			txn, err = beginTxn(env, parent, flags)
+			txn.RawRead = true
+			return
 		},
 		"__lmdb_commit": func(txn *lmdb.Txn, flags uint32) error {
 			if flags&lmdb.Readonly == 0 {
