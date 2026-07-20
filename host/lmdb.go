@@ -3,7 +3,10 @@ package wazero_lmdb
 import (
 	"context"
 	"encoding/binary"
+	"io"
 	"log"
+	"log/slog"
+	"os"
 	"runtime"
 	"strconv"
 	"sync"
@@ -21,6 +24,7 @@ const Name = "pantopic/wazero-lmdb"
 
 var (
 	ctxKeyMeta = Name + `/meta`
+	ctxKeyDir  = Name + `/dir`
 	ctxKeyEnv  = Name + `/env`
 )
 
@@ -98,8 +102,14 @@ func (h *hostModule) InitContext(ctx context.Context, m api.Module) (context.Con
 }
 
 func (h *hostModule) ContextCopy(dst, src context.Context) context.Context {
-	dst = context.WithValue(dst, ctxKeyMeta, get[*meta](src, ctxKeyMeta))
-	dst = context.WithValue(dst, ctxKeyEnv, get[*lmdb.Env](src, ctxKeyEnv))
+	if v := src.Value(ctxKeyMeta); v != nil {
+		dst = context.WithValue(dst, ctxKeyMeta, v.(*meta))
+		if v := src.Value(ctxKeyEnv); v != nil {
+			dst = context.WithValue(dst, ctxKeyEnv, v.(*lmdb.Env))
+		} else {
+			dst = context.WithValue(dst, ctxKeyEnv, EnvCreate(src))
+		}
+	}
 	return dst
 }
 
@@ -352,6 +362,60 @@ func (h *hostModule) Reset(ctx context.Context) {
 
 func (h *hostModule) Stop() (err error) {
 	return
+}
+
+func (h *hostModule) PrepareSnapshot(ctx context.Context) (cursor any, err error) {
+	v := ctx.Value(ctxKeyEnv)
+	if v == nil {
+		return
+	}
+	env := v.(*lmdb.Env)
+	slog.Info(`PrepareSnapshot`)
+	fd, err := env.FD()
+	if err != nil {
+		return
+	}
+	cursor = os.NewFile(fd, `data.mdb`)
+	return
+}
+
+func (h *hostModule) SaveSnapshot(ctx context.Context, cursor any, w io.Writer, close <-chan struct{}) (err error) {
+	slog.Info(`SaveSnapshot`)
+	// TODO: Write metadata (storage engine?, extension version?)
+	_, err = io.Copy(w, cursor.(*os.File))
+	return
+}
+
+func (h *hostModule) RecoverFromSnapshot(ctx context.Context, r io.Reader, _ <-chan struct{}) (err error) {
+	v := ctx.Value(ctxKeyDir)
+	if v == nil {
+		return
+	}
+	dir := v.(string)
+	slog.Info(`RecoverFromSnapshot`)
+	f, err := os.OpenFile(dir+`/data.mdb`, os.O_WRONLY|os.O_CREATE, 0700)
+	if err != nil {
+		return
+	}
+	_, err = io.Copy(f, r)
+	f.Close()
+	return
+}
+
+func (h *hostModule) Sync(ctx context.Context) (err error) {
+	v := ctx.Value(ctxKeyEnv)
+	if v == nil {
+		return
+	}
+	return v.(*lmdb.Env).Sync(true)
+}
+
+func (h *hostModule) Close(ctx context.Context) (err error) {
+	v := ctx.Value(ctxKeyEnv)
+	if v == nil {
+		return
+	}
+	return v.(*lmdb.Env).Close()
 }
 
 func (h *hostModule) env(ctx context.Context) *lmdb.Env {

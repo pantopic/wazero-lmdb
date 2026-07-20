@@ -7,7 +7,12 @@ import (
 	"github.com/PowerDNS/lmdb-go/lmdb"
 )
 
-func EnvCreate(dir string) *lmdb.Env {
+func EnvCreate(ctx context.Context) *lmdb.Env {
+	v := ctx.Value(ctxKeyDir)
+	if v == nil {
+		panic(`directory missing`)
+	}
+	dir := v.(string)
 	err := os.MkdirAll(dir, 0700)
 	if err != nil {
 		panic(err)
@@ -27,4 +32,8 @@ func EnvCreate(dir string) *lmdb.Env {
 
 func EnvRegister(ctx context.Context, env *lmdb.Env) context.Context {
 	return context.WithValue(ctx, ctxKeyEnv, env)
+}
+
+func EnvRegisterDir(ctx context.Context, dir string) context.Context {
+	return context.WithValue(ctx, ctxKeyDir, dir)
 }
