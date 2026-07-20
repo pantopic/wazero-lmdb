@@ -211,18 +211,18 @@ type Cursor struct {
 	id uint32
 }
 
-func (c *Cursor) Get(k, v []byte, flags uint32) (rk []byte, rv []byte, err error) {
+func (c *Cursor) Get(k, v []byte, flags uint32) ([]byte, []byte, error) {
 	curID = c.id
 	expFlg = flags
 	setKey(k)
 	setVal(v)
 	lmdbCursorGet()
 	if errCode > 0 {
-		return nil, nil, opError{Errno(errCode), getVal()}
+		return k[:0], v[:0], opError{Errno(errCode), getVal()}
 	}
-	rk = append(rk, getKey()...)
-	rv = append(rv, getVal()...)
-	return
+	k = append(k[:0], getKey()...)
+	v = append(v[:0], getVal()...)
+	return k, v, nil
 }
 
 func (c *Cursor) Put(k, v []byte, flags uint32) (err error) {
