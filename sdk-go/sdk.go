@@ -45,6 +45,7 @@ const (
 type DBI uint32
 
 var txnStack []*Txn
+var curStack []*Cursor
 
 func BeginTxn(parent *Txn, flags uint32) (txn *Txn, err error) {
 	if parent != nil {
@@ -182,7 +183,13 @@ func (t *Txn) OpenCursor(dbi DBI) (cur *Cursor, err error) {
 		err = opError{Errno(errCode), getVal()}
 		return
 	}
-	cur = &Cursor{curID}
+	if len(curStack) > 0 {
+		cur = curStack[len(curStack)-1]
+		cur.id = curID
+		curStack = curStack[:len(curStack)-1]
+	} else {
+		cur = &Cursor{curID}
+	}
 	return
 }
 
@@ -260,6 +267,7 @@ func (c *Cursor) Del(flags uint32) (err error) {
 func (c *Cursor) Close() {
 	curID = c.id
 	lmdbCursorClose()
+	curStack = append(curStack, c)
 }
 
 var stat = new(Stat)
