@@ -44,6 +44,8 @@ const (
 
 type DBI uint32
 
+var txnStack []*Txn
+
 func BeginTxn(parent *Txn, flags uint32) (txn *Txn, err error) {
 	if parent != nil {
 		txnID = parent.id
@@ -56,7 +58,13 @@ func BeginTxn(parent *Txn, flags uint32) (txn *Txn, err error) {
 		err = opError{Errno(errCode), getVal()}
 		return
 	}
-	txn = &Txn{txnID}
+	if len(txnStack) > 0 {
+		txn = txnStack[len(txnStack)-1]
+		txn.id = txnID
+		txnStack = txnStack[:len(txnStack)-1]
+	} else {
+		txn = &Txn{txnID}
+	}
 	return
 }
 
@@ -184,12 +192,14 @@ func (t *Txn) Commit() (err error) {
 	if errCode > 0 {
 		err = opError{Errno(errCode), getVal()}
 	}
+	txnStack = append(txnStack, t)
 	return
 }
 
 func (t *Txn) Abort() {
 	txnID = t.id
 	lmdbAbort()
+	txnStack = append(txnStack, t)
 }
 
 func (t *Txn) Sub(fn func(*Txn) error) (err error) {
