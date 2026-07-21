@@ -291,8 +291,11 @@ func (s *Stat) from(b []byte) *Stat {
 	return s
 }
 
-func (s *Stat) ToBytes() []byte {
-	b := make([]byte, 48)
+// ToBytes assumes that b is a byte array of length 48. If too small (or nil), it creates a new byte array.
+func (s *Stat) ToBytes(b []byte) []byte {
+	if len(b) < 48 {
+		b = make([]byte, 48)
+	}
 	binary.LittleEndian.PutUint64(b[0:8], uint64(s.PSize))
 	binary.LittleEndian.PutUint64(b[8:16], uint64(s.Depth))
 	binary.LittleEndian.PutUint64(b[16:24], uint64(s.BranchPages))
