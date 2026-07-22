@@ -30,13 +30,17 @@ const (
 
 type Errno uint32
 
+func (err Errno) Error() string {
+	return string(getVal())
+}
+
 type opError struct {
 	code Errno
 	msg  []byte
 }
 
 func (err opError) Error() string {
-	return string(err.msg)
+	return string(getVal())
 }
 
 func IsNotExist(err error) bool {
@@ -51,8 +55,8 @@ func IsErrNo(err error, code Errno) bool {
 	if err == nil {
 		return false
 	}
-	if err, ok := err.(opError); ok {
-		return err.code == code
+	if err, ok := err.(Errno); ok {
+		return err == code
 	}
 	return false
 }

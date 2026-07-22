@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"errors"
+	"runtime"
 	"unsafe"
 
 	"github.com/pantopic/wazero-lmdb/sdk-go"
@@ -10,16 +11,25 @@ import (
 
 func main() {}
 
-var txn *lmdb.Txn
-var cur *lmdb.Cursor
+var txn lmdb.Txn
+var cur lmdb.Cursor
 var dbi lmdb.DBI
 var err error
 var k = make([]byte, 16)
 var v = make([]byte, 16)
+var statbuf = make([]byte, 48)
+
+var m = &runtime.MemStats{}
+
+//export memcheck
+func memcheck() (res uint32) {
+	runtime.ReadMemStats(m)
+	return uint32(m.HeapAlloc)
+}
 
 //export begin
 func begin() {
-	txn, err = lmdb.BeginTxn(nil, 0)
+	txn, err = lmdb.Begin(0)
 	if err != nil {
 		panic(err)
 	}
@@ -27,7 +37,7 @@ func begin() {
 
 //export beginread
 func beginread() {
-	txn, err = lmdb.BeginTxn(nil, lmdb.Readonly)
+	txn, err = lmdb.Begin(lmdb.Readonly)
 	if err != nil {
 		panic(err)
 	}
@@ -47,7 +57,7 @@ func dbstat() uint64 {
 	if err != nil {
 		panic(err)
 	}
-	return sliceToPtr(s.ToBytes())
+	return sliceToPtr(s.ToBytes(statbuf))
 }
 
 //export dbdrop
@@ -68,18 +78,18 @@ func set() {
 
 //export get
 func get() {
-	v, err := txn.Get(dbi, []byte(`a`))
+	v, err := txn.Get(dbi, []byte(`a`), v)
 	if err != nil {
 		panic(err)
 	}
-	if string(v) != `1` {
+	if len(v) > 1 || v[0] != '1' {
 		panic(`wrong value`)
 	}
 }
 
 //export getmissing
 func getmissing() {
-	_, err := txn.Get(dbi, []byte(`ddd`))
+	v, err = txn.Get(dbi, []byte(`ddd`), v)
 	if err == nil {
 		panic(`error not returned`)
 	}
@@ -114,18 +124,18 @@ func set2() {
 
 //export get2
 func get2() {
-	v, err := txn.Get(dbi, []byte(`b`))
+	v, err := txn.Get(dbi, []byte(`b`), v)
 	if err != nil {
 		panic(err)
 	}
-	if string(v) != `2` {
+	if unsafe.String(&v[0], len(v)) != `2` {
 		panic(`wrong value`)
 	}
 }
 
 //export update
 func update() {
-	if err := lmdb.Update(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn lmdb.Txn) error {
 		txn.Put(dbi, []byte(`b`), []byte(`22`), 0)
 		return nil
 	}); err != nil {
@@ -133,11 +143,13 @@ func update() {
 	}
 }
 
+var icbydt = errors.New(`I can't believe you've done this.`)
+
 //export updatefail
 func updatefail() {
-	if err := lmdb.Update(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn lmdb.Txn) error {
 		txn.Put(dbi, []byte(`b`), []byte(`222`), 0)
-		return errors.New(`I can't believe you've done this.`)
+		return icbydt
 	}); err == nil {
 		panic(`Error missing`)
 	}
@@ -145,12 +157,13 @@ func updatefail() {
 
 //export view
 func view() {
-	err := lmdb.View(func(txn *lmdb.Txn) (err error) {
-		v, err := txn.Get(dbi, []byte(`b`))
+	err := lmdb.View(func(txn lmdb.Txn) (err error) {
+		v, err = txn.Get(dbi, []byte(`b`), v)
 		if err != nil {
 			return
 		}
-		if string(v) != `22` {
+		s := unsafe.String(&v[0], len(v))
+		if s != `22` {
 			err = errors.New("Wrong value: " + string(v) + " != 22")
 		}
 		return
@@ -162,7 +175,7 @@ func view() {
 
 //export clear
 func clear() {
-	if err := lmdb.Update(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn lmdb.Txn) (err error) {
 		dbi, err = txn.OpenDBI("test", lmdb.Create)
 		if err != nil {
 			panic(err)
@@ -175,8 +188,8 @@ func clear() {
 
 //export sub
 func sub() {
-	if err := lmdb.Update(func(txn *lmdb.Txn) error {
-		return txn.Sub(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn lmdb.Txn) (err error) {
+		return txn.Sub(func(txn lmdb.Txn) error {
 			return txn.Put(dbi, []byte(`sub`), []byte(`txn`), 0)
 		})
 	}); err != nil {
@@ -186,10 +199,10 @@ func sub() {
 
 //export subabort
 func subabort() {
-	if err := lmdb.Update(func(txn *lmdb.Txn) error {
-		txn.Sub(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn lmdb.Txn) (err error) {
+		txn.Sub(func(txn lmdb.Txn) error {
 			txn.Put(dbi, []byte(`sub`), []byte(`txn`), 0)
-			return errors.New(`I can't believe you've done this.`)
+			return icbydt
 		})
 		return nil
 	}); err != nil {
@@ -199,8 +212,8 @@ func subabort() {
 
 //export subdel
 func subdel() {
-	if err := lmdb.Update(func(txn *lmdb.Txn) error {
-		return txn.Sub(func(txn *lmdb.Txn) error {
+	if err := lmdb.Update(func(txn lmdb.Txn) (err error) {
+		return txn.Sub(func(txn lmdb.Txn) error {
 			return txn.Del(dbi, []byte(`sub`), nil)
 		})
 	}); err != nil {
@@ -210,7 +223,7 @@ func subdel() {
 
 //export stress
 func stress(limit uint32) {
-	txn, err = lmdb.BeginTxn(nil, 0)
+	txn, err = lmdb.Begin(0)
 	if err != nil {
 		panic(err)
 	}
@@ -219,8 +232,8 @@ func stress(limit uint32) {
 	}
 	n := uint64(limit)
 	for i := range n {
-		binary.LittleEndian.PutUint64(k, i+1e15)
-		binary.LittleEndian.PutUint64(v, n-i+1e15)
+		k = binary.LittleEndian.AppendUint64(k[:0], i+1e15)
+		v = binary.LittleEndian.AppendUint64(v[:0], n-i+1e15)
 		if err := txn.Put(dbi, k, v, 0); err != nil {
 			panic(err)
 		}
@@ -248,14 +261,14 @@ func cursoropen() {
 
 //export cursorfirst
 func cursorfirst() {
-	k, v, err := cur.Get(nil, nil, lmdb.First)
+	k, v, err := cur.Get(k, v, lmdb.First)
 	if err != nil {
 		panic(err)
 	}
-	if string(k) != `b` {
+	if unsafe.String(&k[0], len(k)) != `b` {
 		panic(`wrong key: ` + string(k))
 	}
-	if string(v) != `22` {
+	if unsafe.String(&v[0], len(v)) != `22` {
 		panic(`wrong value: ` + string(v))
 	}
 }
@@ -270,28 +283,28 @@ func cursorput() {
 
 //export cursorcurrent
 func cursorcurrent() {
-	k, v, err := cur.Get(nil, nil, lmdb.GetCurrent)
+	k, v, err := cur.Get(k, v, lmdb.GetCurrent)
 	if err != nil {
 		panic(err)
 	}
-	if string(k) != `c` {
+	if unsafe.String(&k[0], len(k)) != `c` {
 		panic(`wrong key: ` + string(k))
 	}
-	if string(v) != `3` {
+	if unsafe.String(&v[0], len(v)) != `3` {
 		panic(`wrong value: ` + string(v))
 	}
 }
 
 //export cursornext
 func cursornext() {
-	k, v, err := cur.Get(nil, nil, lmdb.Next)
+	k, v, err := cur.Get(k, v, lmdb.Next)
 	if err != nil {
 		panic(err)
 	}
-	if string(k) != `c` {
+	if unsafe.String(&k[0], len(k)) != `c` {
 		panic(`wrong key: ` + string(k))
 	}
-	if string(v) != `3` {
+	if unsafe.String(&v[0], len(v)) != `3` {
 		panic(`wrong value: ` + string(v))
 	}
 }
@@ -316,7 +329,7 @@ func valptrs2() uint64 {
 
 //export setval
 func setval() {
-	if err := txn.Put(dbi, k, v, 0); err != nil {
+	if err := txn.Put(dbi, k[:16], v[:16], 0); err != nil {
 		panic(err)
 	}
 }
@@ -326,6 +339,7 @@ func sliceToPtr(b []byte) uint64 {
 }
 
 // Fix for lint rule `unusedfunc`
+var _ = memcheck
 var _ = begin
 var _ = db
 var _ = dbstat

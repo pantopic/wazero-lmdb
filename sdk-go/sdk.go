@@ -44,33 +44,20 @@ const (
 
 type DBI uint32
 
-var txnStack []*Txn
-var curStack []*Cursor
-
-func BeginTxn(parent *Txn, flags uint32) (txn *Txn, err error) {
-	if parent != nil {
-		txnID = parent.id
-	} else {
-		txnID = 0
-	}
+func Begin(flags uint32) (txn Txn, err error) {
+	txnID = 0
 	expFlg = flags
 	lmdbBegin()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
+		err = Errno(errCode)
 		return
 	}
-	if len(txnStack) > 0 {
-		txn = txnStack[len(txnStack)-1]
-		txn.id = txnID
-		txnStack = txnStack[:len(txnStack)-1]
-	} else {
-		txn = &Txn{txnID}
-	}
+	txn = Txn(txnID)
 	return
 }
 
-func View(fn func(*Txn) error) (err error) {
-	txn, err := BeginTxn(nil, Readonly)
+func View(fn func(txn Txn) error) (err error) {
+	txn, err := Begin(Readonly)
 	if err != nil {
 		return
 	}
@@ -79,8 +66,8 @@ func View(fn func(*Txn) error) (err error) {
 	return
 }
 
-func Update(fn func(*Txn) error) (err error) {
-	txn, err := BeginTxn(nil, 0)
+func Update(fn func(txn Txn) error) (err error) {
+	txn, err := Begin(0)
 	if err != nil {
 		return
 	}
@@ -94,180 +81,176 @@ func Update(fn func(*Txn) error) (err error) {
 
 // Txn represents an LMDB transaction
 // See https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb#Txn
-type Txn struct {
-	id uint32
-}
+type Txn uint32
 
-func (t *Txn) CreateDBI(name string, flags uint32) (dbi DBI, err error) {
+func (t Txn) id() uint32 { return uint32(t) }
+
+func (t Txn) CreateDBI(name string, flags uint32) (dbi DBI, err error) {
 	return t.OpenDBI(name, flags|Create)
 }
 
-func (t *Txn) OpenDBI(name string, flags uint32) (dbi DBI, err error) {
-	txnID = t.id
+func (t Txn) OpenDBI(name string, flags uint32) (dbi DBI, err error) {
+	txnID = t.id()
 	expFlg = flags
 	setKey([]byte(name))
 	lmdbDbOpen()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
+		err = Errno(errCode)
 		return
 	}
 	dbi = expDbi
 	return
 }
 
-func (t *Txn) Drop(dbi DBI) (err error) {
-	txnID = t.id
+func (t Txn) Drop(dbi DBI) (err error) {
+	txnID = t.id()
 	expDbi = dbi
 	lmdbDbDrop()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
+		err = Errno(errCode)
 	}
 	return
 }
 
-func (t *Txn) Stat(dbi DBI) (s *Stat, err error) {
-	txnID = t.id
+func (t Txn) Stat(dbi DBI) (s *Stat, err error) {
+	txnID = t.id()
 	expDbi = dbi
 	lmdbDbStat()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
+		err = Errno(errCode)
 		return
 	}
 	s = stat.from(getVal())
 	return
 }
 
-func (t *Txn) Put(dbi DBI, k, v []byte, flags uint32) (err error) {
-	txnID = t.id
+func (t Txn) Put(dbi DBI, k, v []byte, flags uint32) (err error) {
+	txnID = t.id()
 	expDbi = dbi
 	expFlg = flags
 	setKey(k)
 	setVal(v)
 	lmdbPut()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
+		return Errno(errCode)
 	}
 	return
 }
 
-func (t *Txn) Get(dbi DBI, k []byte) (v []byte, err error) {
-	txnID = t.id
+func (t Txn) Get(dbi DBI, k, v []byte) ([]byte, error) {
+	txnID = t.id()
 	expDbi = dbi
 	setKey(k)
 	lmdbGet()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
-		return
+		return v, Errno(errCode)
 	}
-	v = append(v, getVal()...)
-	return
+	v = append(v[:0], getVal()...)
+	return v, nil
 }
 
-func (t *Txn) Del(dbi DBI, k, v []byte) (err error) {
-	txnID = t.id
+func (t Txn) Del(dbi DBI, k, v []byte) (err error) {
+	txnID = t.id()
 	expDbi = dbi
 	setKey(k)
 	setVal(v)
 	lmdbDel()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
+		err = Errno(errCode)
 	}
 	return
 }
 
-func (t *Txn) OpenCursor(dbi DBI) (cur *Cursor, err error) {
-	txnID = t.id
+func (t Txn) OpenCursor(dbi DBI) (cur Cursor, err error) {
+	txnID = t.id()
 	expDbi = dbi
 	lmdbCursorOpen()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
+		err = Errno(errCode)
 		return
 	}
-	if len(curStack) > 0 {
-		cur = curStack[len(curStack)-1]
-		cur.id = curID
-		curStack = curStack[:len(curStack)-1]
-	} else {
-		cur = &Cursor{curID}
-	}
+	cur = Cursor(curID)
 	return
 }
 
-func (t *Txn) Commit() (err error) {
-	txnID = t.id
+func (t Txn) Commit() (err error) {
+	txnID = t.id()
 	lmdbCommit()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
+		err = Errno(errCode)
 	}
-	txnStack = append(txnStack, t)
+	txnID = 0
 	return
 }
 
-func (t *Txn) Abort() {
-	txnID = t.id
+func (t Txn) Abort() {
+	txnID = t.id()
 	lmdbAbort()
-	txnStack = append(txnStack, t)
+	txnID = 0
 }
 
-func (t *Txn) Sub(fn func(*Txn) error) (err error) {
-	txn, err := BeginTxn(t, 0)
-	if err != nil {
+func (t Txn) Sub(fn func(txn Txn) error) (err error) {
+	txnID = t.id()
+	lmdbBegin()
+	if errCode > 0 {
+		err = Errno(errCode)
 		return
 	}
+	txn := Txn(txnID)
 	if err = fn(txn); err == nil {
 		err = txn.Commit()
 	} else {
 		txn.Abort()
 	}
+	txnID = t.id()
 	return
 }
 
 // Cursor represents an LMDB cursor
 // See https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb#Cursor
-type Cursor struct {
-	id uint32
-}
+type Cursor uint32
+
+func (c Cursor) id() uint32 { return uint32(c) }
 
 func (c *Cursor) Get(k, v []byte, flags uint32) ([]byte, []byte, error) {
-	curID = c.id
+	curID = c.id()
 	expFlg = flags
 	setKey(k)
 	setVal(v)
 	lmdbCursorGet()
 	if errCode > 0 {
-		return k[:0], v[:0], opError{Errno(errCode), getVal()}
+		return k[:0], v[:0], Errno(errCode) // TODO - avoid opError alloc?
 	}
 	k = append(k[:0], getKey()...)
 	v = append(v[:0], getVal()...)
 	return k, v, nil
 }
 
-func (c *Cursor) Put(k, v []byte, flags uint32) (err error) {
-	curID = c.id
+func (c Cursor) Put(k, v []byte, flags uint32) (err error) {
+	curID = c.id()
 	expFlg = flags
 	setKey(k)
 	setVal(v)
 	lmdbCursorPut()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
+		err = Errno(errCode)
 	}
 	return
 }
 
-func (c *Cursor) Del(flags uint32) (err error) {
-	curID = c.id
+func (c Cursor) Del(flags uint32) (err error) {
+	curID = c.id()
 	expFlg = flags
 	lmdbCursorDel()
 	if errCode > 0 {
-		err = opError{Errno(errCode), getVal()}
+		err = Errno(errCode)
 	}
 	return
 }
 
-func (c *Cursor) Close() {
-	curID = c.id
+func (c Cursor) Close() {
+	curID = c.id()
 	lmdbCursorClose()
-	curStack = append(curStack, c)
 }
 
 var stat = new(Stat)
