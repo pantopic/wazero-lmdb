@@ -1,0 +1,10 @@
+.{
+    .name = .test_zig,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .sdk_zig = .{ .path = "../sdk-zig" },
+    },
+    .paths = .{""},
+    .fingerprint = 0xb8b3cc46409ad9e1,
+}

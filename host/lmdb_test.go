@@ -17,10 +17,21 @@ import (
 //go:embed test\.wasm
 var testwasm []byte
 
+//go:embed test-zig\.wasm
+var testwasmzig []byte
+
 func TestModule(t *testing.T) {
+	t.Run(`go`, func(t *testing.T) {
+		testModule(t, testwasm, "/tmp/pantopic/module-lmdb-go")
+	})
+	t.Run(`zig`, func(t *testing.T) {
+		testModule(t, testwasmzig, "/tmp/pantopic/module-lmdb-zig")
+	})
+}
+
+func testModule(t *testing.T, testwasm []byte, path string) {
 	var (
 		optEnv uint = lmdb.NoMemInit | lmdb.NoReadahead | lmdb.NoSync | lmdb.NoMetaSync | lmdb.NoLock | lmdb.NoSubdir | lmdb.Create
-		path        = "/tmp/pantopic/module-lmdb"
 		ctx         = context.Background()
 		out         = &bytes.Buffer{}
 	)

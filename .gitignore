@@ -1,2 +1,4 @@
 _dist
 *.wasm
+zig-out
+.zig-cache
