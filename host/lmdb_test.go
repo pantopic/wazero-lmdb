@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 //go:embed test\.wasm
 var testwasm []byte
 
-//go:embed test-zig\.wasm
+//go:embed test\.zig\.wasm
 var testwasmzig []byte
 
 func TestModule(t *testing.T) {
@@ -84,7 +85,9 @@ func testModule(t *testing.T, testwasm []byte, path string) {
 
 	call := func(cmd string, params ...uint64) {
 		if _, err := mod.ExportedFunction(cmd).Call(ctx, params...); err != nil {
-			t.Fatalf("%v\n%s", err, out.String())
+			var s []byte
+			runtime.Stack(s, true)
+			t.Fatalf("%v\n%s\n%s", err, out.String(), string(s))
 		}
 	}
 	dbstat := func(n uint64) {
