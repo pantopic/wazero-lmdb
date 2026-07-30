@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .wasi });
 
     const mod = b.addModule("lmdb", .{
-        .root_source_file = b.path("src/lmdb.zig"),
+        .root_source_file = b.path("src/sdk.zig"),
         .target = wasm_target,
         .optimize = optimize,
     });
@@ -16,7 +16,7 @@ pub fn build(b: *std.Build) void {
     const native = b.standardTargetOptions(.{});
     const tests = b.addTest(.{
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/lmdb.zig"),
+            .root_source_file = b.path("src/sdk.zig"),
             .target = native,
             .optimize = optimize,
         }),
