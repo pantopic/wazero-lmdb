@@ -1,4 +1,4 @@
-//! Test guest module for the Zig SDK, mirroring test/module.go.
+//! Test guest module for the Zig SDK
 
 const std = @import("std");
 const lmdb = @import("lmdb");

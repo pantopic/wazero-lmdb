@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
+    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
     const target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .wasi });
 
     const sdk = b.dependency("sdk_zig", .{ .optimize = optimize });
