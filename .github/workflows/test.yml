@@ -21,7 +21,7 @@ jobs:
       uses: acifani/setup-tinygo@v3
 
     - name: Set up Zig
-      uses: https://codeberg.org/mlugg/setup-zig@v2
+      uses: mlugg/setup-zig@v2
       with:
         version: 0.16.0
 
