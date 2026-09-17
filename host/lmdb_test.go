@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -17,10 +18,21 @@ import (
 //go:embed test\.wasm
 var testwasm []byte
 
+//go:embed test\.zig\.wasm
+var testwasmzig []byte
+
 func TestModule(t *testing.T) {
+	t.Run(`go`, func(t *testing.T) {
+		testModule(t, testwasm, "/tmp/pantopic/module-lmdb-go")
+	})
+	t.Run(`zig`, func(t *testing.T) {
+		testModule(t, testwasmzig, "/tmp/pantopic/module-lmdb-zig")
+	})
+}
+
+func testModule(t *testing.T, testwasm []byte, path string) {
 	var (
 		optEnv uint = lmdb.NoMemInit | lmdb.NoReadahead | lmdb.NoSync | lmdb.NoMetaSync | lmdb.NoLock | lmdb.NoSubdir | lmdb.Create
-		path        = "/tmp/pantopic/module-lmdb"
 		ctx         = context.Background()
 		out         = &bytes.Buffer{}
 	)
@@ -73,7 +85,9 @@ func TestModule(t *testing.T) {
 
 	call := func(cmd string, params ...uint64) {
 		if _, err := mod.ExportedFunction(cmd).Call(ctx, params...); err != nil {
-			t.Fatalf("%v\n%s", err, out.String())
+			var s []byte
+			runtime.Stack(s, true)
+			t.Fatalf("%v\n%s\n%s", err, out.String(), string(s))
 		}
 	}
 	dbstat := func(n uint64) {
