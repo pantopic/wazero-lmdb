@@ -15,12 +15,10 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
-        go-version: stable
+        go-version: '1.25'
 
     - name: Set up Tinygo
       uses: acifani/setup-tinygo@v2
-      with:
-        tinygo-version: 0.38.0
 
     - name: Build WASM
       run: cd test && tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o ../host/test.wasm module.go
