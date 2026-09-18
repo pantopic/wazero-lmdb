@@ -6,14 +6,14 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/pantopic/wazero-lmdb/sdk-go"
+	"github.com/pantopic/ext-mdb/sdk-go"
 )
 
 func main() {}
 
-var txn lmdb.Txn
-var cur lmdb.Cursor
-var dbi lmdb.DBI
+var txn mdb.Txn
+var cur mdb.Cursor
+var dbi mdb.DBI
 var err error
 var k = make([]byte, 16)
 var v = make([]byte, 16)
@@ -29,7 +29,7 @@ func memcheck() (res uint32) {
 
 //export begin
 func begin() {
-	txn, err = lmdb.Begin(0)
+	txn, err = mdb.Begin(0)
 	if err != nil {
 		panic(err)
 	}
@@ -37,7 +37,7 @@ func begin() {
 
 //export beginread
 func beginread() {
-	txn, err = lmdb.Begin(lmdb.Readonly)
+	txn, err = mdb.Begin(mdb.Readonly)
 	if err != nil {
 		panic(err)
 	}
@@ -45,7 +45,7 @@ func beginread() {
 
 //export db
 func db() {
-	dbi, err = txn.OpenDBI("test", lmdb.Create)
+	dbi, err = txn.OpenDBI("test", mdb.Create)
 	if err != nil {
 		panic(err)
 	}
@@ -93,7 +93,7 @@ func getmissing() {
 	if err == nil {
 		panic(`error not returned`)
 	}
-	if !lmdb.IsNotFound(err) {
+	if !mdb.IsNotFound(err) {
 		panic(err)
 	}
 }
@@ -135,7 +135,7 @@ func get2() {
 
 //export update
 func update() {
-	if err := lmdb.Update(func(txn lmdb.Txn) error {
+	if err := mdb.Update(func(txn mdb.Txn) error {
 		txn.Put(dbi, []byte(`b`), []byte(`22`), 0)
 		return nil
 	}); err != nil {
@@ -147,7 +147,7 @@ var icbydt = errors.New(`I can't believe you've done this.`)
 
 //export updatefail
 func updatefail() {
-	if err := lmdb.Update(func(txn lmdb.Txn) error {
+	if err := mdb.Update(func(txn mdb.Txn) error {
 		txn.Put(dbi, []byte(`b`), []byte(`222`), 0)
 		return icbydt
 	}); err == nil {
@@ -157,7 +157,7 @@ func updatefail() {
 
 //export view
 func view() {
-	err := lmdb.View(func(txn lmdb.Txn) (err error) {
+	err := mdb.View(func(txn mdb.Txn) (err error) {
 		v, err = txn.Get(dbi, []byte(`b`), v)
 		if err != nil {
 			return
@@ -175,8 +175,8 @@ func view() {
 
 //export clear
 func clear() {
-	if err := lmdb.Update(func(txn lmdb.Txn) (err error) {
-		dbi, err = txn.OpenDBI("test", lmdb.Create)
+	if err := mdb.Update(func(txn mdb.Txn) (err error) {
+		dbi, err = txn.OpenDBI("test", mdb.Create)
 		if err != nil {
 			panic(err)
 		}
@@ -188,8 +188,8 @@ func clear() {
 
 //export sub
 func sub() {
-	if err := lmdb.Update(func(txn lmdb.Txn) (err error) {
-		return txn.Sub(func(txn lmdb.Txn) error {
+	if err := mdb.Update(func(txn mdb.Txn) (err error) {
+		return txn.Sub(func(txn mdb.Txn) error {
 			return txn.Put(dbi, []byte(`sub`), []byte(`txn`), 0)
 		})
 	}); err != nil {
@@ -199,8 +199,8 @@ func sub() {
 
 //export subabort
 func subabort() {
-	if err := lmdb.Update(func(txn lmdb.Txn) (err error) {
-		txn.Sub(func(txn lmdb.Txn) error {
+	if err := mdb.Update(func(txn mdb.Txn) (err error) {
+		txn.Sub(func(txn mdb.Txn) error {
 			txn.Put(dbi, []byte(`sub`), []byte(`txn`), 0)
 			return icbydt
 		})
@@ -212,8 +212,8 @@ func subabort() {
 
 //export subdel
 func subdel() {
-	if err := lmdb.Update(func(txn lmdb.Txn) (err error) {
-		return txn.Sub(func(txn lmdb.Txn) error {
+	if err := mdb.Update(func(txn mdb.Txn) (err error) {
+		return txn.Sub(func(txn mdb.Txn) error {
 			return txn.Del(dbi, []byte(`sub`), nil)
 		})
 	}); err != nil {
@@ -223,11 +223,11 @@ func subdel() {
 
 //export stress
 func stress(limit uint32) {
-	txn, err = lmdb.Begin(0)
+	txn, err = mdb.Begin(0)
 	if err != nil {
 		panic(err)
 	}
-	if dbi, err = txn.OpenDBI("test", lmdb.Create); err != nil {
+	if dbi, err = txn.OpenDBI("test", mdb.Create); err != nil {
 		panic(err)
 	}
 	n := uint64(limit)
@@ -251,7 +251,7 @@ func abort() {
 
 //export cursoropen
 func cursoropen() {
-	if dbi, err = txn.OpenDBI("test", lmdb.Create); err != nil {
+	if dbi, err = txn.OpenDBI("test", mdb.Create); err != nil {
 		panic(err)
 	}
 	if cur, err = txn.OpenCursor(dbi); err != nil {
@@ -261,7 +261,7 @@ func cursoropen() {
 
 //export cursorfirst
 func cursorfirst() {
-	k, v, err := cur.Get(k, v, lmdb.First)
+	k, v, err := cur.Get(k, v, mdb.First)
 	if err != nil {
 		panic(err)
 	}
@@ -283,7 +283,7 @@ func cursorput() {
 
 //export cursorcurrent
 func cursorcurrent() {
-	k, v, err := cur.Get(k, v, lmdb.GetCurrent)
+	k, v, err := cur.Get(k, v, mdb.GetCurrent)
 	if err != nil {
 		panic(err)
 	}
@@ -297,7 +297,7 @@ func cursorcurrent() {
 
 //export cursornext
 func cursornext() {
-	k, v, err := cur.Get(k, v, lmdb.Next)
+	k, v, err := cur.Get(k, v, mdb.Next)
 	if err != nil {
 		panic(err)
 	}
@@ -311,7 +311,7 @@ func cursornext() {
 
 //export cursordel
 func cursordel() {
-	err := cur.Del(lmdb.Current)
+	err := cur.Del(mdb.Current)
 	if err != nil {
 		panic(err)
 	}

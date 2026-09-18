@@ -12,7 +12,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("module.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "lmdb", .module = sdk.module("lmdb") }},
+            .imports = &.{.{ .name = "mdb", .module = sdk.module("mdb") }},
         }),
     });
     exe.entry = .disabled;

@@ -20,7 +20,7 @@ pub var cur_id: u32 = 0;
 pub var exp_flg: u32 = 0;
 pub var err_code: u32 = 0;
 
-export fn __lmdb() u32 {
+export fn __mdb() u32 {
     meta[0] = @intCast(@intFromPtr(&key_cap));
     meta[1] = @intCast(@intFromPtr(&key_len));
     meta[2] = @intCast(@intFromPtr(&key_buf[0]));
@@ -98,17 +98,17 @@ test "stat round trip" {
 }
 
 // Host module imports
-pub extern "pantopic/wazero-lmdb" fn __lmdb_begin() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_db_open() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_db_stat() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_db_drop() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_commit() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_abort() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_put() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_get() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_del() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_cursor_open() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_cursor_get() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_cursor_put() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_cursor_del() void;
-pub extern "pantopic/wazero-lmdb" fn __lmdb_cursor_close() void;
+pub extern "pantopic/ext-mdb" fn __mdb_begin() void;
+pub extern "pantopic/ext-mdb" fn __mdb_db_open() void;
+pub extern "pantopic/ext-mdb" fn __mdb_db_stat() void;
+pub extern "pantopic/ext-mdb" fn __mdb_db_drop() void;
+pub extern "pantopic/ext-mdb" fn __mdb_commit() void;
+pub extern "pantopic/ext-mdb" fn __mdb_abort() void;
+pub extern "pantopic/ext-mdb" fn __mdb_put() void;
+pub extern "pantopic/ext-mdb" fn __mdb_get() void;
+pub extern "pantopic/ext-mdb" fn __mdb_del() void;
+pub extern "pantopic/ext-mdb" fn __mdb_cursor_open() void;
+pub extern "pantopic/ext-mdb" fn __mdb_cursor_get() void;
+pub extern "pantopic/ext-mdb" fn __mdb_cursor_put() void;
+pub extern "pantopic/ext-mdb" fn __mdb_cursor_del() void;
+pub extern "pantopic/ext-mdb" fn __mdb_cursor_close() void;

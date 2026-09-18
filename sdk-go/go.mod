@@ -1,3 +1,3 @@
-module github.com/pantopic/wazero-lmdb/sdk-go
+module github.com/pantopic/ext-mdb/sdk-go
 
 go 1.24.3

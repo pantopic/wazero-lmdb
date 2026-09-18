@@ -1,4 +1,4 @@
-package lmdb
+package mdb
 
 import (
 	"unsafe"
@@ -22,8 +22,8 @@ var (
 	errCode uint32
 )
 
-//export __lmdb
-func __lmdb() (res uint32) {
+//export __mdb
+func __mdb() (res uint32) {
 	meta[0] = uint32(uintptr(unsafe.Pointer(&keyCap)))
 	meta[1] = uint32(uintptr(unsafe.Pointer(&keyLen)))
 	meta[2] = uint32(uintptr(unsafe.Pointer(&key[0])))
@@ -56,61 +56,61 @@ func getVal() []byte {
 	return val[:valLen]
 }
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_begin
-func lmdbBegin()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_begin
+func mdbBegin()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_db_open
-func lmdbDbOpen()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_db_open
+func mdbDbOpen()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_db_stat
-func lmdbDbStat()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_db_stat
+func mdbDbStat()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_db_drop
-func lmdbDbDrop()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_db_drop
+func mdbDbDrop()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_commit
-func lmdbCommit()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_commit
+func mdbCommit()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_abort
-func lmdbAbort()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_abort
+func mdbAbort()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_put
-func lmdbPut()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_put
+func mdbPut()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_get
-func lmdbGet()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_get
+func mdbGet()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_del
-func lmdbDel()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_del
+func mdbDel()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_cursor_open
-func lmdbCursorOpen()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_cursor_open
+func mdbCursorOpen()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_cursor_get
-func lmdbCursorGet()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_cursor_get
+func mdbCursorGet()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_cursor_put
-func lmdbCursorPut()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_cursor_put
+func mdbCursorPut()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_cursor_del
-func lmdbCursorDel()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_cursor_del
+func mdbCursorDel()
 
-//go:wasm-module pantopic/wazero-lmdb
-//export __lmdb_cursor_close
-func lmdbCursorClose()
+//go:wasm-module pantopic/ext-mdb
+//export __mdb_cursor_close
+func mdbCursorClose()
 
 // Fix for lint rule `unusedfunc`
-var _ = __lmdb
+var _ = __mdb

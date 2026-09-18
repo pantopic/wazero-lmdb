@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .wasi });
 
-    const mod = b.addModule("lmdb", .{
+    const mod = b.addModule("mdb", .{
         .root_source_file = b.path("src/sdk.zig"),
         .target = wasm_target,
         .optimize = optimize,

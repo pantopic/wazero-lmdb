@@ -15,15 +15,15 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
-//go:embed test\.wasm
-var testwasm []byte
+//go:embed test.go.wasm
+var testwasmgo []byte
 
-//go:embed test\.zig\.wasm
+//go:embed test.zig.wasm
 var testwasmzig []byte
 
 func TestModule(t *testing.T) {
 	t.Run(`go`, func(t *testing.T) {
-		testModule(t, testwasm, "/tmp/pantopic/module-lmdb-go")
+		testModule(t, testwasmgo, "/tmp/pantopic/module-lmdb-go")
 	})
 	t.Run(`zig`, func(t *testing.T) {
 		testModule(t, testwasmzig, "/tmp/pantopic/module-lmdb-zig")

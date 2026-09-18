@@ -1,11 +1,11 @@
-package lmdb
+package mdb
 
 import (
 	"encoding/binary"
 )
 
-// LMDB multiuse flags
-// See https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb#pkg-constants
+// mdb multiuse flags
+// See https://pkg.go.dev/github.com/PowerDNS/mdb-go/mdb#pkg-constants
 const (
 	DupSort     uint32 = 0x00004
 	Current     uint32 = 0x00040
@@ -19,8 +19,8 @@ const (
 	AppendDup   uint32 = 0x40000 // Append an item to the database (DupSort).
 )
 
-// LMDB cursor flags
-// https://github.com/PowerDNS/lmdb-go/blob/v1.9.3/lmdb/cursor.go#L16
+// mdb cursor flags
+// https://github.com/PowerDNS/mdb-go/blob/v1.9.3/mdb/cursor.go#L16
 const (
 	First uint32 = iota
 	FirstDup
@@ -47,7 +47,7 @@ type DBI uint32
 func Begin(flags uint32) (txn Txn, err error) {
 	txnID = 0
 	expFlg = flags
-	lmdbBegin()
+	mdbBegin()
 	if errCode > 0 {
 		err = Errno(errCode)
 		return
@@ -79,8 +79,8 @@ func Update(fn func(txn Txn) error) (err error) {
 	return
 }
 
-// Txn represents an LMDB transaction
-// See https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb#Txn
+// Txn represents an mdb transaction
+// See https://pkg.go.dev/github.com/PowerDNS/mdb-go/mdb#Txn
 type Txn uint32
 
 func (t Txn) id() uint32 { return uint32(t) }
@@ -93,7 +93,7 @@ func (t Txn) OpenDBI(name string, flags uint32) (dbi DBI, err error) {
 	txnID = t.id()
 	expFlg = flags
 	setKey([]byte(name))
-	lmdbDbOpen()
+	mdbDbOpen()
 	if errCode > 0 {
 		err = Errno(errCode)
 		return
@@ -105,7 +105,7 @@ func (t Txn) OpenDBI(name string, flags uint32) (dbi DBI, err error) {
 func (t Txn) Drop(dbi DBI) (err error) {
 	txnID = t.id()
 	expDbi = dbi
-	lmdbDbDrop()
+	mdbDbDrop()
 	if errCode > 0 {
 		err = Errno(errCode)
 	}
@@ -115,7 +115,7 @@ func (t Txn) Drop(dbi DBI) (err error) {
 func (t Txn) Stat(dbi DBI) (s *Stat, err error) {
 	txnID = t.id()
 	expDbi = dbi
-	lmdbDbStat()
+	mdbDbStat()
 	if errCode > 0 {
 		err = Errno(errCode)
 		return
@@ -130,7 +130,7 @@ func (t Txn) Put(dbi DBI, k, v []byte, flags uint32) (err error) {
 	expFlg = flags
 	setKey(k)
 	setVal(v)
-	lmdbPut()
+	mdbPut()
 	if errCode > 0 {
 		return Errno(errCode)
 	}
@@ -141,7 +141,7 @@ func (t Txn) Get(dbi DBI, k, v []byte) ([]byte, error) {
 	txnID = t.id()
 	expDbi = dbi
 	setKey(k)
-	lmdbGet()
+	mdbGet()
 	if errCode > 0 {
 		return v, Errno(errCode)
 	}
@@ -154,7 +154,7 @@ func (t Txn) Del(dbi DBI, k, v []byte) (err error) {
 	expDbi = dbi
 	setKey(k)
 	setVal(v)
-	lmdbDel()
+	mdbDel()
 	if errCode > 0 {
 		err = Errno(errCode)
 	}
@@ -164,7 +164,7 @@ func (t Txn) Del(dbi DBI, k, v []byte) (err error) {
 func (t Txn) OpenCursor(dbi DBI) (cur Cursor, err error) {
 	txnID = t.id()
 	expDbi = dbi
-	lmdbCursorOpen()
+	mdbCursorOpen()
 	if errCode > 0 {
 		err = Errno(errCode)
 		return
@@ -175,7 +175,7 @@ func (t Txn) OpenCursor(dbi DBI) (cur Cursor, err error) {
 
 func (t Txn) Commit() (err error) {
 	txnID = t.id()
-	lmdbCommit()
+	mdbCommit()
 	if errCode > 0 {
 		err = Errno(errCode)
 	}
@@ -185,13 +185,13 @@ func (t Txn) Commit() (err error) {
 
 func (t Txn) Abort() {
 	txnID = t.id()
-	lmdbAbort()
+	mdbAbort()
 	txnID = 0
 }
 
 func (t Txn) Sub(fn func(txn Txn) error) (err error) {
 	txnID = t.id()
-	lmdbBegin()
+	mdbBegin()
 	if errCode > 0 {
 		err = Errno(errCode)
 		return
@@ -206,8 +206,8 @@ func (t Txn) Sub(fn func(txn Txn) error) (err error) {
 	return
 }
 
-// Cursor represents an LMDB cursor
-// See https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb#Cursor
+// Cursor represents an mdb cursor
+// See https://pkg.go.dev/github.com/PowerDNS/mdb-go/mdb#Cursor
 type Cursor uint32
 
 func (c Cursor) id() uint32 { return uint32(c) }
@@ -217,7 +217,7 @@ func (c *Cursor) Get(k, v []byte, flags uint32) ([]byte, []byte, error) {
 	expFlg = flags
 	setKey(k)
 	setVal(v)
-	lmdbCursorGet()
+	mdbCursorGet()
 	if errCode > 0 {
 		return k[:0], v[:0], Errno(errCode) // TODO - avoid opError alloc?
 	}
@@ -231,7 +231,7 @@ func (c Cursor) Put(k, v []byte, flags uint32) (err error) {
 	expFlg = flags
 	setKey(k)
 	setVal(v)
-	lmdbCursorPut()
+	mdbCursorPut()
 	if errCode > 0 {
 		err = Errno(errCode)
 	}
@@ -241,7 +241,7 @@ func (c Cursor) Put(k, v []byte, flags uint32) (err error) {
 func (c Cursor) Del(flags uint32) (err error) {
 	curID = c.id()
 	expFlg = flags
-	lmdbCursorDel()
+	mdbCursorDel()
 	if errCode > 0 {
 		err = Errno(errCode)
 	}
@@ -250,7 +250,7 @@ func (c Cursor) Del(flags uint32) (err error) {
 
 func (c Cursor) Close() {
 	curID = c.id()
-	lmdbCursorClose()
+	mdbCursorClose()
 }
 
 var stat = new(Stat)

@@ -1,4 +1,4 @@
-package lmdb
+package mdb
 
 const (
 	None Errno = iota

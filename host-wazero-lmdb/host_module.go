@@ -20,7 +20,7 @@ import (
 )
 
 // Name is the name of this host module.
-const Name = "pantopic/wazero-lmdb"
+const Name = "pantopic/ext-mdb"
 
 var (
 	ctxKeyMeta = Name + `/meta`
@@ -73,7 +73,7 @@ func (h *hostModule) Name() string {
 }
 
 func (h *hostModule) InitContext(ctx context.Context, m api.Module) (context.Context, error) {
-	stack, err := m.ExportedFunction(`__lmdb`).Call(ctx)
+	stack, err := m.ExportedFunction(`__mdb`).Call(ctx)
 	if err != nil {
 		return ctx, err
 	}
@@ -119,7 +119,7 @@ func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 		builder = builder.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(fn), nil, nil).Export(name)
 	}
 	for name, fn := range map[string]any{
-		"__lmdb_begin": func(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (txn *lmdb.Txn, err error) {
+		"__mdb_begin": func(env *lmdb.Env, parent *lmdb.Txn, flags uint32) (txn *lmdb.Txn, err error) {
 			if flags&lmdb.Readonly == 0 {
 				runtime.LockOSThread()
 			}
@@ -127,31 +127,31 @@ func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 			txn.RawRead = true
 			return
 		},
-		"__lmdb_commit": func(txn *lmdb.Txn, flags uint32) error {
+		"__mdb_commit": func(txn *lmdb.Txn, flags uint32) error {
 			if flags&lmdb.Readonly == 0 {
 				defer runtime.UnlockOSThread()
 			}
 			return txn.Commit()
 		},
-		"__lmdb_abort": func(txn *lmdb.Txn, flags uint32) {
+		"__mdb_abort": func(txn *lmdb.Txn, flags uint32) {
 			if flags&lmdb.Readonly == 0 {
 				defer runtime.UnlockOSThread()
 			}
 			txn.Abort()
 		},
-		"__lmdb_db_open": func(txn *lmdb.Txn, name string, flags uint32) (dbi lmdb.DBI, err error) {
+		"__mdb_db_open": func(txn *lmdb.Txn, name string, flags uint32) (dbi lmdb.DBI, err error) {
 			return txn.OpenDBI(name, uint(flags)&dbFlagMask)
 		},
-		"__lmdb_db_stat": func(txn *lmdb.Txn, dbi lmdb.DBI) (stat *lmdb.Stat, err error) {
+		"__mdb_db_stat": func(txn *lmdb.Txn, dbi lmdb.DBI) (stat *lmdb.Stat, err error) {
 			return txn.Stat(dbi)
 		},
-		"__lmdb_db_drop": func(txn *lmdb.Txn, dbi lmdb.DBI) (err error) {
+		"__mdb_db_drop": func(txn *lmdb.Txn, dbi lmdb.DBI) (err error) {
 			return txn.Drop(dbi, true)
 		},
-		"__lmdb_put": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte, flags uint32) (err error) {
+		"__mdb_put": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte, flags uint32) (err error) {
 			return txn.Put(dbi, key, val, uint(flags)&txnPutFlagMask)
 		},
-		"__lmdb_get": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) ([]byte, error) {
+		"__mdb_get": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) ([]byte, error) {
 			v, err := txn.Get(dbi, key)
 			if err != nil {
 				return nil, err
@@ -160,13 +160,13 @@ func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 			copy(val, v)
 			return val, nil
 		},
-		"__lmdb_del": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) (err error) {
+		"__mdb_del": func(txn *lmdb.Txn, dbi lmdb.DBI, key, val []byte) (err error) {
 			return txn.Del(dbi, key, val)
 		},
-		"__lmdb_cursor_open": func(txn *lmdb.Txn, dbi lmdb.DBI) (cur *lmdb.Cursor, err error) {
+		"__mdb_cursor_open": func(txn *lmdb.Txn, dbi lmdb.DBI) (cur *lmdb.Cursor, err error) {
 			return txn.OpenCursor(dbi)
 		},
-		"__lmdb_cursor_get": func(cur *lmdb.Cursor, key, val []byte, op uint32) (k []byte, v []byte, err error) {
+		"__mdb_cursor_get": func(cur *lmdb.Cursor, key, val []byte, op uint32) (k []byte, v []byte, err error) {
 			if uint(op) == lmdb.NextDup {
 				k, v, err = cur.Get(nil, nil, uint(op))
 			} else {
@@ -181,13 +181,13 @@ func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 			copy(val, v)
 			return key, val, nil
 		},
-		"__lmdb_cursor_del": func(cur *lmdb.Cursor, flags uint32) error {
+		"__mdb_cursor_del": func(cur *lmdb.Cursor, flags uint32) error {
 			return cur.Del(uint(flags))
 		},
-		"__lmdb_cursor_put": func(cur *lmdb.Cursor, key, val []byte, flags uint32) error {
+		"__mdb_cursor_put": func(cur *lmdb.Cursor, key, val []byte, flags uint32) error {
 			return cur.Put(key, val, uint(flags)&curPutFlagMask)
 		},
-		"__lmdb_cursor_close": func(cur *lmdb.Cursor) {
+		"__mdb_cursor_close": func(cur *lmdb.Cursor) {
 			cur.Close()
 		},
 	} {

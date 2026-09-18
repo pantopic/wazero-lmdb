@@ -79,7 +79,7 @@ pub fn isNotExist(err: anyerror) bool {
 pub fn begin(flags: u32) Error!Txn {
     abi.txn_id = 0;
     abi.exp_flg = flags;
-    abi.__lmdb_begin();
+    abi.__mdb_begin();
     try abi.check();
     return .{ .id = abi.txn_id };
 }
@@ -111,7 +111,7 @@ pub const Txn = struct {
         abi.txn_id = t.id;
         abi.exp_flg = flags;
         abi.setKey(name);
-        abi.__lmdb_db_open();
+        abi.__mdb_db_open();
         try abi.check();
         return abi.exp_dbi;
     }
@@ -119,14 +119,14 @@ pub const Txn = struct {
     pub fn drop(t: Txn, dbi: DBI) Error!void {
         abi.txn_id = t.id;
         abi.exp_dbi = dbi;
-        abi.__lmdb_db_drop();
+        abi.__mdb_db_drop();
         try abi.check();
     }
 
     pub fn stat(t: Txn, dbi: DBI) Error!Stat {
         abi.txn_id = t.id;
         abi.exp_dbi = dbi;
-        abi.__lmdb_db_stat();
+        abi.__mdb_db_stat();
         try abi.check();
         return Stat.fromBytes(abi.getVal()[0..48]);
     }
@@ -137,7 +137,7 @@ pub const Txn = struct {
         abi.exp_flg = flags;
         abi.setKey(k);
         abi.setVal(v);
-        abi.__lmdb_put();
+        abi.__mdb_put();
         try abi.check();
     }
 
@@ -145,7 +145,7 @@ pub const Txn = struct {
         abi.txn_id = t.id;
         abi.exp_dbi = dbi;
         abi.setKey(k);
-        abi.__lmdb_get();
+        abi.__mdb_get();
         try abi.check();
         return abi.getVal();
     }
@@ -155,34 +155,34 @@ pub const Txn = struct {
         abi.exp_dbi = dbi;
         abi.setKey(k);
         abi.setVal(v);
-        abi.__lmdb_del();
+        abi.__mdb_del();
         try abi.check();
     }
 
     pub fn openCursor(t: Txn, dbi: DBI) Error!Cursor {
         abi.txn_id = t.id;
         abi.exp_dbi = dbi;
-        abi.__lmdb_cursor_open();
+        abi.__mdb_cursor_open();
         try abi.check();
         return .{ .id = abi.cur_id };
     }
 
     pub fn commit(t: Txn) Error!void {
         abi.txn_id = t.id;
-        abi.__lmdb_commit();
+        abi.__mdb_commit();
         defer abi.txn_id = 0;
         try abi.check();
     }
 
     pub fn abort(t: Txn) void {
         abi.txn_id = t.id;
-        abi.__lmdb_abort();
+        abi.__mdb_abort();
         abi.txn_id = 0;
     }
 
     pub fn sub(t: Txn, func: anytype) anyerror!void {
         abi.txn_id = t.id;
-        abi.__lmdb_begin();
+        abi.__mdb_begin();
         try abi.check();
         const child = Txn{ .id = abi.txn_id };
         defer abi.txn_id = t.id;
@@ -210,7 +210,7 @@ pub const Cursor = struct {
         abi.exp_flg = flags;
         abi.setKey(k);
         abi.setVal(v);
-        abi.__lmdb_cursor_get();
+        abi.__mdb_cursor_get();
         try abi.check();
         return .{ .key = abi.getKey(), .val = abi.getVal() };
     }
@@ -220,20 +220,20 @@ pub const Cursor = struct {
         abi.exp_flg = flags;
         abi.setKey(k);
         abi.setVal(v);
-        abi.__lmdb_cursor_put();
+        abi.__mdb_cursor_put();
         try abi.check();
     }
 
     pub fn del(c: Cursor, flags: u32) Error!void {
         abi.cur_id = c.id;
         abi.exp_flg = flags;
-        abi.__lmdb_cursor_del();
+        abi.__mdb_cursor_del();
         try abi.check();
     }
 
     pub fn close(c: Cursor) void {
         abi.cur_id = c.id;
-        abi.__lmdb_cursor_close();
+        abi.__mdb_cursor_close();
     }
 };
 

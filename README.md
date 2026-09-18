@@ -1,12 +1,12 @@
-# Wazero LMDB
+# MDB
 
-A [wazero](https://pkg.go.dev/github.com/tetratelabs/wazero) host module, ABI and guest SDK providing [LMDB](https://pkg.go.dev/github.com/PowerDNS/lmdb-go/lmdb) for WASI modules.
+A [wazero](https://pkg.go.dev/github.com/tetratelabs/wazero) host module, ABI and guest SDK providing memory mapped databases for WASI modules.
 
 ## Host Module
 
-[![Go Reference](https://godoc.org/github.com/pantopic/wazero-lmdb/host?status.svg)](https://godoc.org/github.com/pantopic/wazero-lmdb/host)
-[![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/wazero-lmdb/host)](https://goreportcard.com/report/github.com/pantopic/wazero-lmdb/host)
-[![Go Coverage](https://github.com/pantopic/wazero-lmdb/wiki/host/coverage.svg)](https://raw.githack.com/wiki/pantopic/wazero-lmdb/host/coverage.html)
+[![Go Reference](https://godoc.org/github.com/pantopic/ext-mdb/host-wazero?status.svg)](https://godoc.org/github.com/pantopic/ext-mdb/host-wazero)
+[![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/ext-mdb/host-wazero)](https://goreportcard.com/report/github.com/pantopic/ext-mdb/host-wazero)
+[![Go Coverage](https://github.com/pantopic/wazero-lmdb/wiki/host/coverage.svg)](https://raw.githack.com/wiki/pantopic/ext-mdb/host-wazero/coverage.html)
 
 First register the host module with the runtime
 
@@ -15,7 +15,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
-	"github.com/pantopic/wazero-lmdb/host"
+	"github.com/pantopic/ext-mdb/host-wazero-lmdb"
 )
 
 func main() {
@@ -32,8 +32,8 @@ func main() {
 
 ## Guest SDK (Go)
 
-[![Go Reference](https://godoc.org/github.com/pantopic/wazero-lmdb/lmdb-go?status.svg)](https://godoc.org/github.com/pantopic/wazero-lmdb/lmdb-go)
-[![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/wazero-lmdb/lmdb-go)](https://goreportcard.com/report/github.com/pantopic/wazero-lmdb/lmdb-go)
+[![Go Reference](https://godoc.org/github.com/pantopic/ext-mdb/sdk-go?status.svg)](https://godoc.org/github.com/pantopic/ext-mdb/sdk-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/ext-mdb/sdk-go)](https://goreportcard.com/report/github.com/pantopic/ext-mdb/sdk-go)
 
 Then you can import the guest SDK into your WASI module to create and manage LMDB environments from WASM.
 
@@ -43,14 +43,14 @@ package main
 import (
 	"unsafe"
 
-	"github.com/pantopic/wazero-lmdb/lmdb-go"
+	"github.com/pantopic/ext-mdb/sdk-go"
 )
 
 func main() {}
 
 //export set
 func set() {
-	lmdb.Update(func(txn *lmdb.Txn) error {
+	mdb.Update(func(txn *lmdb.Txn) error {
 		dbi, _ := txn.DbCreate("test")
 		return txn.Put(dbi, []byte(`hello`), []byte(`world`))
 	})
@@ -59,7 +59,7 @@ func set() {
 //export get
 func get() uint64 {
 	var val []byte
-	lmdb.View(func(txn *lmdb.Txn) (err error) {
+	mdb.View(func(txn *lmdb.Txn) (err error) {
 		dbi, _ := txn.DbOpen("test")
 		val, err = txn.Get(dbi, []byte(`hello`))
 		return
@@ -68,7 +68,7 @@ func get() uint64 {
 }
 ```
 
-The [guest SDK](https://pkg.go.dev/github.com/pantopic/wazero-lmdb/lmdb-go) has no dependencies outside the Go std lib.
+The [guest SDK](https://pkg.go.dev/github.com/pantopic/ext-mdb/sdk-go) has no dependencies outside the Go std lib.
 The [ABI](lmdb/abi.go) is ~130 lines of code and the [SDK](lmdb/sdk.go) is ~400 lines of code so it should be simple
 to port this guest SDK if you want to use the Host Module from WASM modules written in other guest languages
 (i.e. Rust). Contributions welcome.

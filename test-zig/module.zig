@@ -1,11 +1,11 @@
 //! Test guest module for the Zig SDK
 
 const std = @import("std");
-const lmdb = @import("lmdb");
+const mdb = @import("mdb");
 
-var txn: lmdb.Txn = .{ .id = 0 };
-var cur: lmdb.Cursor = .{ .id = 0 };
-var dbi: lmdb.DBI = 0;
+var txn: mdb.Txn = .{ .id = 0 };
+var cur: mdb.Cursor = .{ .id = 0 };
+var dbi: mdb.DBI = 0;
 var k: [16]u8 = undefined;
 var v: [16]u8 = undefined;
 var statbuf: [48]u8 = undefined;
@@ -20,15 +20,15 @@ export fn memcheck() u32 {
 }
 
 export fn begin() void {
-    txn = lmdb.begin(0) catch |err| fatal(err);
+    txn = mdb.begin(0) catch |err| fatal(err);
 }
 
 export fn beginread() void {
-    txn = lmdb.begin(lmdb.readonly) catch |err| fatal(err);
+    txn = mdb.begin(mdb.readonly) catch |err| fatal(err);
 }
 
 export fn db() void {
-    dbi = txn.openDBI("test", lmdb.create) catch |err| fatal(err);
+    dbi = txn.openDBI("test", mdb.create) catch |err| fatal(err);
 }
 
 export fn dbstat() u64 {
@@ -54,7 +54,7 @@ export fn getmissing() void {
     if (txn.get(dbi, "ddd")) |_| {
         @panic("error not returned");
     } else |err| {
-        if (!lmdb.isNotFound(err)) fatal(err);
+        if (!mdb.isNotFound(err)) fatal(err);
     }
 }
 
@@ -75,83 +75,83 @@ export fn get2() void {
     if (!std.mem.eql(u8, val, "2")) @panic("wrong value");
 }
 
-fn updateFn(t: lmdb.Txn) anyerror!void {
+fn updateFn(t: mdb.Txn) anyerror!void {
     t.put(dbi, "b", "22", 0) catch {};
 }
 
 export fn update() void {
-    lmdb.update(updateFn) catch |err| fatal(err);
+    mdb.update(updateFn) catch |err| fatal(err);
 }
 
-fn updatefailFn(t: lmdb.Txn) anyerror!void {
+fn updatefailFn(t: mdb.Txn) anyerror!void {
     t.put(dbi, "b", "222", 0) catch {};
     return error.ICantBelieveYouveDoneThis;
 }
 
 export fn updatefail() void {
-    if (lmdb.update(updatefailFn)) |_| {
+    if (mdb.update(updatefailFn)) |_| {
         @panic("Error missing");
     } else |_| {}
 }
 
-fn viewFn(t: lmdb.Txn) anyerror!void {
+fn viewFn(t: mdb.Txn) anyerror!void {
     const val = try t.get(dbi, "b");
     if (!std.mem.eql(u8, val, "22")) return error.WrongValue;
 }
 
 export fn view() void {
-    lmdb.view(viewFn) catch |err| fatal(err);
+    mdb.view(viewFn) catch |err| fatal(err);
 }
 
-fn clearFn(t: lmdb.Txn) anyerror!void {
-    dbi = t.openDBI("test", lmdb.create) catch |err| fatal(err);
+fn clearFn(t: mdb.Txn) anyerror!void {
+    dbi = t.openDBI("test", mdb.create) catch |err| fatal(err);
     return t.drop(dbi);
 }
 
 export fn clear() void {
-    lmdb.update(clearFn) catch |err| fatal(err);
+    mdb.update(clearFn) catch |err| fatal(err);
 }
 
-fn subPut(t: lmdb.Txn) anyerror!void {
+fn subPut(t: mdb.Txn) anyerror!void {
     return t.put(dbi, "sub", "txn", 0);
 }
 
-fn subFn(t: lmdb.Txn) anyerror!void {
+fn subFn(t: mdb.Txn) anyerror!void {
     return t.sub(subPut);
 }
 
 export fn sub() void {
-    lmdb.update(subFn) catch |err| fatal(err);
+    mdb.update(subFn) catch |err| fatal(err);
 }
 
-fn subPutFail(t: lmdb.Txn) anyerror!void {
+fn subPutFail(t: mdb.Txn) anyerror!void {
     t.put(dbi, "sub", "txn", 0) catch {};
     return error.ICantBelieveYouveDoneThis;
 }
 
-fn subabortFn(t: lmdb.Txn) anyerror!void {
+fn subabortFn(t: mdb.Txn) anyerror!void {
     t.sub(subPutFail) catch {};
 }
 
 export fn subabort() void {
-    lmdb.update(subabortFn) catch |err| fatal(err);
+    mdb.update(subabortFn) catch |err| fatal(err);
 }
 
-fn subDel(t: lmdb.Txn) anyerror!void {
+fn subDel(t: mdb.Txn) anyerror!void {
     return t.del(dbi, "sub", "");
 }
 
-fn subdelFn(t: lmdb.Txn) anyerror!void {
+fn subdelFn(t: mdb.Txn) anyerror!void {
     return t.sub(subDel);
 }
 
 export fn subdel() void {
-    lmdb.update(subdelFn) catch |err| fatal(err);
+    mdb.update(subdelFn) catch |err| fatal(err);
 }
 
 export fn stress(limit: u32) void {
-    txn = lmdb.begin(0) catch |err| fatal(err);
-    dbi = txn.openDBI("test", lmdb.create) catch |err| fatal(err);
+    txn = mdb.begin(0) catch |err| fatal(err);
+    dbi = txn.openDBI("test", mdb.create) catch |err| fatal(err);
     const n: u64 = limit;
     var i: u64 = 0;
     while (i < n) : (i += 1) {
@@ -167,12 +167,12 @@ export fn abort() void {
 }
 
 export fn cursoropen() void {
-    dbi = txn.openDBI("test", lmdb.create) catch |err| fatal(err);
+    dbi = txn.openDBI("test", mdb.create) catch |err| fatal(err);
     cur = txn.openCursor(dbi) catch |err| fatal(err);
 }
 
 export fn cursorfirst() void {
-    const e = cur.get("", "", lmdb.op_first) catch |err| fatal(err);
+    const e = cur.get("", "", mdb.op_first) catch |err| fatal(err);
     if (!std.mem.eql(u8, e.key, "b")) @panic("wrong key");
     if (!std.mem.eql(u8, e.val, "22")) @panic("wrong value");
 }
@@ -182,19 +182,19 @@ export fn cursorput() void {
 }
 
 export fn cursorcurrent() void {
-    const e = cur.get("", "", lmdb.op_get_current) catch |err| fatal(err);
+    const e = cur.get("", "", mdb.op_get_current) catch |err| fatal(err);
     if (!std.mem.eql(u8, e.key, "c")) @panic("wrong key");
     if (!std.mem.eql(u8, e.val, "3")) @panic("wrong value");
 }
 
 export fn cursornext() void {
-    const e = cur.get("", "", lmdb.op_next) catch |err| fatal(err);
+    const e = cur.get("", "", mdb.op_next) catch |err| fatal(err);
     if (!std.mem.eql(u8, e.key, "c")) @panic("wrong key");
     if (!std.mem.eql(u8, e.val, "3")) @panic("wrong value");
 }
 
 export fn cursordel() void {
-    cur.del(lmdb.current) catch |err| fatal(err);
+    cur.del(mdb.current) catch |err| fatal(err);
 }
 
 export fn cursorclose() void {
