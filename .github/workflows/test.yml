@@ -25,10 +25,10 @@ jobs:
       with:
         version: 0.16.0
 
-    - name: Build wasm go
+    - name: Build WASM Go
       run: make wasm-go
 
-    - name: Build wasm zig
+    - name: Build WASM Zig
       run: make wasm-zig
 
     - name: Test
