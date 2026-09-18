@@ -3,6 +3,8 @@ name: gocover
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -32,6 +34,6 @@ jobs:
       uses: ncruces/go-coverage-report@v0.3.1
       with:
         coverage-file: _dist/coverage.out
-        module-dir: host
-        output-dir: host
+        module-dir: host-wazero-lmdb
+        output-dir: host-wazero-lmdb
       continue-on-error: true
