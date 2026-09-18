@@ -34,12 +34,12 @@ jobs:
       run: make wasm-zig
 
     - name: Cover Host Wazero LMDB
-      run: make cover
+      run: cd host-wazero-lmdb && go test . -coverprofile coverage.out
 
     - name: Update Host coverage badge
       uses: ncruces/go-coverage-report@v0.3.1
       with:
-        coverage-file: ../_dist/coverage.out
+        coverage-file: coverage.out
         module-dir: host-wazero-lmdb
         output-dir: host-wazero-lmdb
       continue-on-error: true
