@@ -23,15 +23,15 @@ jobs:
         tinygo-version: 0.38.0
 
     - name: Build WASM
-      run: cd test && tinygo build -buildmode=wasi-legacy -target=wasi -opt=2 -gc=conservative -scheduler=none -o ../host/test.wasm module.go
+      run: make wasm-go
 
     - name: Cover Host
-      run: cd host && go test . -coverprofile coverage.out
+      run: make cover
 
     - name: Update Host coverage badge
       uses: ncruces/go-coverage-report@v0.3.1
       with:
-        coverage-file: coverage.out
+        coverage-file: _dist/coverage.out
         module-dir: host
         output-dir: host
       continue-on-error: true
